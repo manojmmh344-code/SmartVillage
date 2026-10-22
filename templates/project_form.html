@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ form_title }} · Smart Village{% endblock %}
+{% block content %}
+<div class="breadcrumbs"><a href="{{ url_for('projects') }}">Projects</a><span>/</span>{{ form_title }}</div>
+<div class="page-heading"><div><p class="eyebrow">ADMINISTRATION</p><h1>{{ form_title }}</h1><p class="muted">Enter project details and select a village.</p></div></div>
+<section class="panel form-panel"><form method="post">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <div class="form-grid">
+    <label class="form-full">Project name<input name="name" maxlength="160" required value="{{ request.form.get('name', project.name if project else '') }}"></label>
+    <label>Village<select name="village_id" required><option value="">Choose village</option>{% for village in villages %}<option value="{{ village.id }}" {{ 'selected' if request.form.get('village_id', project.village_id if project else '')|string == village.id|string else '' }}>{{ village.name }}</option>{% endfor %}</select></label>
+    <label>Department<input name="department" maxlength="100" required value="{{ request.form.get('department', project.department if project else '') }}"></label>
+    <label>Budget (₹)<input name="budget" type="number" min="0" step="0.01" required value="{{ request.form.get('budget', project.budget if project else '') }}"></label>
+    <label>Status<select name="status" required>{% for option in ['Planned', 'In Progress', 'Completed'] %}<option value="{{ option }}" {{ 'selected' if request.form.get('status', project.status if project else 'Planned') == option else '' }}>{{ option }}</option>{% endfor %}</select></label>
+    <label>Start date<input name="start_date" type="date" required value="{{ request.form.get('start_date', project.start_date if project else '') }}"></label>
+    <label>Expected completion date<input name="expected_completion_date" type="date" required value="{{ request.form.get('expected_completion_date', project.expected_completion_date if project else '') }}"></label>
+  </div>
+  <div class="form-actions"><button class="button button-primary" type="submit">Save project</button><a class="button button-outline" href="{{ url_for('projects') }}">Cancel</a></div>
+</form></section>
+{% endblock %}

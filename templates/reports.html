@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Reports · Smart Village{% endblock %}
+{% block content %}
+<div class="page-heading no-print"><div><p class="eyebrow">PRINTABLE SUMMARY</p><h1>Village development report</h1><p class="muted">A compact summary of the information currently stored in this prototype.</p></div><button class="button button-primary" type="button" data-print>Print / Save as PDF</button></div>
+<div class="report-title print-only"><h1>Village development summary</h1><p>Smart Village Informatics and Development Dashboard · Fictional sample data</p></div>
+<div class="notice no-print"><strong>Sample report.</strong> All figures are fictional and are not official government information.</div>
+<section class="report-summary">
+  <article class="stat-card"><span class="stat-label">Villages included</span><strong>{{ villages|length }}</strong></article>
+  <article class="stat-card"><span class="stat-label">Projects recorded</span><strong>{{ project_total }}</strong></article>
+  <article class="stat-card"><span class="stat-label">Villages highlighted</span><strong>{{ attention_villages|length }}</strong></article>
+</section>
+<section class="panel"><div class="panel-heading"><div><h2>Village development summary</h2><p>Population and key infrastructure indicators</p></div></div><div class="table-scroll"><table><thead><tr><th>Village</th><th>District</th><th>Population</th><th>Schools</th><th>Healthcare</th><th>Road status</th><th>Water</th></tr></thead><tbody>{% for village in villages %}<tr><td class="cell-strong">{{ village.name }}</td><td>{{ village.district }}</td><td>{{ "{:,}".format(village.population) }}</td><td>{{ village.schools }}</td><td>{{ village.healthcare_centers }}</td><td>{{ village.road_status }}</td><td>{{ village.water_availability }}%</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="panel attention-panel"><div class="panel-heading"><div><h2>Indicators that may need attention</h2><p>Flagged when water is below 70% or road status needs improvement.</p></div></div>{% if attention_villages %}<ul class="attention-list">{% for village in attention_villages %}<li><span class="attention-dot"></span><div><strong>{{ village.name }}</strong><span>{{ village.district }} · Water availability {{ village.water_availability }}% · Road status: {{ village.road_status }}</span></div><a class="text-link" href="{{ url_for('village_details', village_id=village.id) }}">View</a></li>{% endfor %}</ul>{% else %}<p>No villages currently match these sample attention rules.</p>{% endif %}</section>
+<p class="small-note">The attention rules are simple examples, not official standards or recommendations.</p>
+{% endblock %}

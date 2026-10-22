@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Admin panel · Smart Village{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">ADMINISTRATION</p><h1>Administrator panel</h1><p class="muted">Manage the sample village and project records.</p></div></div>
+<div class="notice"><strong>Prototype authentication.</strong> This demonstration login should be strengthened before real-world deployment. All records are fictional.</div>
+<section class="stat-grid admin-stats"><article class="stat-card"><span class="stat-label">Village records</span><strong>{{ village_count }}</strong><a class="text-link" href="{{ url_for('villages') }}">View villages →</a></article><article class="stat-card"><span class="stat-label">Project records</span><strong>{{ project_count }}</strong><a class="text-link" href="{{ url_for('projects') }}">View projects →</a></article></section>
+<section class="content-grid admin-actions">
+  <article class="panel"><h2>Village records</h2><p class="muted">Add new village profiles or edit and delete existing records.</p><div class="button-row"><a class="button button-primary" href="{{ url_for('add_village') }}">＋ Add village</a><a class="button button-outline" href="{{ url_for('villages') }}">Manage villages</a></div></article>
+  <article class="panel"><h2>Project records</h2><p class="muted">Record project budgets, departments, dates, and progress status.</p><div class="button-row"><a class="button button-primary" href="{{ url_for('add_project') }}">＋ Add project</a><a class="button button-outline" href="{{ url_for('projects') }}">Manage projects</a></div></article>
+</section>
+{% endblock %}

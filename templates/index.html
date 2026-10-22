@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Smart Village{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">OVERVIEW</p><h1>Development dashboard</h1><p class="muted">A quick overview of the fictional village records in this prototype.</p></div>
+  <a class="button button-primary" href="{{ url_for('reports') }}">View summary report</a>
+</div>
+<div class="notice"><strong>Sample data only.</strong> These fictional records are for demonstration and are not live government data.</div>
+<section class="stat-grid" aria-label="Dashboard statistics">
+  <article class="stat-card"><span class="stat-icon icon-green">⌂</span><span class="stat-label">Total villages</span><strong>{{ counts.villages }}</strong><small>In this sample database</small></article>
+  <article class="stat-card"><span class="stat-icon icon-blue">▤</span><span class="stat-label">Total schools</span><strong>{{ counts.schools }}</strong><small>Across all villages</small></article>
+  <article class="stat-card"><span class="stat-icon icon-purple">✚</span><span class="stat-label">Healthcare centers</span><strong>{{ counts.healthcare }}</strong><small>Across all villages</small></article>
+  <article class="stat-card"><span class="stat-icon icon-orange">⚒</span><span class="stat-label">Development projects</span><strong>{{ counts.projects }}</strong><small>All listed statuses</small></article>
+  <article class="stat-card"><span class="stat-icon icon-green">✓</span><span class="stat-label">Completed projects</span><strong>{{ counts.completed }}</strong><small>Marked completed</small></article>
+  <article class="stat-card"><span class="stat-icon icon-blue">◷</span><span class="stat-label">In progress</span><strong>{{ counts.in_progress }}</strong><small>Currently underway</small></article>
+</section>
+<section class="content-grid charts-grid">
+  <article class="panel">
+    <div class="panel-heading"><div><h2>Village development indicators</h2><p>Facilities, water and road rating (out of 100)</p></div><a class="text-link" href="{{ url_for('analytics') }}">More analytics →</a></div>
+    <div class="chart-wrap"><canvas id="villageChart" aria-label="Bar chart comparing village indicators"></canvas></div>
+    <script id="village-chart-data" type="application/json">{{ villages|map(attribute='name')|list|tojson }}</script>
+    <script id="village-metrics-data" type="application/json">{{ villages|map(attribute='schools')|list|tojson }}</script>
+    <script id="village-water-data" type="application/json">{{ villages|map(attribute='water_availability')|list|tojson }}</script>
+    <script id="village-health-data" type="application/json">{{ villages|map(attribute='healthcare_centers')|list|tojson }}</script>
+    <script id="village-roads-data" type="application/json">{{ villages|map(attribute='road_status')|list|tojson }}</script>
+  </article>
+  <article class="panel">
+    <div class="panel-heading"><div><h2>Project status</h2><p>Number of projects by current status</p></div></div>
+    <div class="chart-wrap chart-wrap-small"><canvas id="projectChart" aria-label="Pie chart showing project status"></canvas></div>
+    <script id="project-status-data" type="application/json">{{ [counts.completed, counts.in_progress, counts.projects - counts.completed - counts.in_progress]|tojson }}</script>
+  </article>
+</section>
+<section class="panel table-panel">
+  <div class="panel-heading panel-heading-wrap"><div><h2>Recent development projects</h2><p>Latest projects recorded in the sample database</p></div><a class="button button-outline button-small" href="{{ url_for('projects') }}">All projects</a></div>
+  <div class="table-scroll"><table><thead><tr><th>Project</th><th>Village</th><th>Department</th><th>Budget</th><th>Status</th><th>Expected completion</th></tr></thead>
+  <tbody>{% for project in projects %}<tr><td class="cell-strong">{{ project.name }}</td><td>{{ project.village_name }}</td><td>{{ project.department }}</td><td>₹{{ "{:,.0f}".format(project.budget) }}</td><td><span class="status status-{{ project.status|lower|replace(' ', '-') }}">{{ project.status }}</span></td><td>{{ project.expected_completion_date }}</td></tr>{% else %}<tr><td colspan="6" class="empty-state">No projects have been added yet.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+<section class="panel quick-search">
+  <div><h2>Find a village</h2><p class="muted">Search the sample village directory by name or district.</p></div>
+  <form class="search-form" action="{{ url_for('villages') }}" method="get"><label class="sr-only" for="home-village-search">Village name or district</label><input id="home-village-search" type="search" name="q" placeholder="Try “Greenfield”"><button class="button button-primary" type="submit">Search villages</button></form>
+</section>
+{% endblock %}

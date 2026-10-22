@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A sample-data village development information dashboard for a college project.">
+  <title>{% block title %}Smart Village Dashboard{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script defer src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="{{ url_for('index') }}">
+        <span class="brand-icon" aria-hidden="true">SV</span>
+        <span><strong>Smart Village</strong><small>Development dashboard</small></span>
+      </a>
+      <div class="nav-label">WORKSPACE</div>
+      <nav class="side-nav" aria-label="Main navigation">
+        <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}"><span aria-hidden="true">▦</span> Dashboard</a>
+        <a href="{{ url_for('villages') }}" class="{{ 'active' if request.endpoint in ('villages', 'village_details') else '' }}"><span aria-hidden="true">⌂</span> Villages</a>
+        <a href="{{ url_for('projects') }}" class="{{ 'active' if request.endpoint == 'projects' else '' }}"><span aria-hidden="true">▤</span> Projects</a>
+        <a href="{{ url_for('analytics') }}" class="{{ 'active' if request.endpoint == 'analytics' else '' }}"><span aria-hidden="true">▥</span> Analytics</a>
+        <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint == 'reports' else '' }}"><span aria-hidden="true">▧</span> Reports</a>
+      </nav>
+      {% if session.get('user_role') == 'admin' %}
+      <div class="nav-label">ADMINISTRATION</div>
+      <nav class="side-nav" aria-label="Administration navigation">
+        <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint == 'admin_dashboard' else '' }}"><span aria-hidden="true">⚙</span> Admin panel</a>
+      </nav>
+      {% endif %}
+      <div class="sidebar-note"><strong>Sample project</strong><p>All village and project records are fictional demo data.</p></div>
+    </aside>
+    <div class="main-column">
+      <header class="topbar">
+        <button class="menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+        <div class="topbar-title">Village Development Portal <span class="demo-pill">DEMO DATA</span></div>
+        <div class="account-area">
+          {% if session.get('username') %}
+            <span class="account-name">Signed in as <strong>{{ session.get('username') }}</strong></span>
+            <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="button button-outline button-small" type="submit">Sign out</button></form>
+          {% else %}
+            <a class="button button-outline button-small" href="{{ url_for('login') }}">Administrator login</a>
+          {% endif %}
+        </div>
+      </header>
+      <main class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}<div class="flash-stack" aria-live="polite">{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </main>
+      <footer class="footer">Smart Village Informatics and Development Dashboard <span>College project prototype · fictional sample data</span></footer>
+    </div>
+  </div>
+</body>
+</html>

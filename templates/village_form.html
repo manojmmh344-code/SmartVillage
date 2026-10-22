@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ form_title }} · Smart Village{% endblock %}
+{% block content %}
+<div class="breadcrumbs"><a href="{{ url_for('villages') }}">Villages</a><span>/</span>{{ form_title }}</div>
+<div class="page-heading"><div><p class="eyebrow">ADMINISTRATION</p><h1>{{ form_title }}</h1><p class="muted">Enter the village information. All fields are required.</p></div></div>
+<section class="panel form-panel"><form method="post">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <div class="form-grid">
+    <label>Village name<input name="name" maxlength="100" required value="{{ request.form.get('name', village.name if village else '') }}"></label>
+    <label>District<input name="district" maxlength="100" required value="{{ request.form.get('district', village.district if village else '') }}"></label>
+    <label>Population<input name="population" type="number" min="0" required value="{{ request.form.get('population', village.population if village else '') }}"></label>
+    <label>Number of schools<input name="schools" type="number" min="0" required value="{{ request.form.get('schools', village.schools if village else '') }}"></label>
+    <label>Healthcare centers<input name="healthcare_centers" type="number" min="0" required value="{{ request.form.get('healthcare_centers', village.healthcare_centers if village else '') }}"></label>
+    <label>Road status<select name="road_status" required><option value="">Choose status</option>{% for option in ['Good', 'Fair', 'Needs improvement'] %}<option value="{{ option }}" {{ 'selected' if request.form.get('road_status', village.road_status if village else '') == option else '' }}>{{ option }}</option>{% endfor %}</select></label>
+    <label>Drinking water availability (%)<input name="water_availability" type="number" min="0" max="100" required value="{{ request.form.get('water_availability', village.water_availability if village else '') }}"></label>
+    <label class="form-full">Main agriculture information<input name="agriculture" maxlength="200" required value="{{ request.form.get('agriculture', village.agriculture if village else '') }}" placeholder="e.g. rice, vegetables"></label>
+  </div>
+  <div class="form-actions"><button class="button button-primary" type="submit">Save village</button><a class="button button-outline" href="{{ url_for('villages') }}">Cancel</a>
+  </div>
+</form>
+{% if village %}<form class="delete-form" method="post" action="{{ url_for('delete_village', village_id=village.id) }}" data-confirm="Delete this village? It cannot be deleted while projects are linked to it."><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="button button-danger" type="submit">Delete village</button></form>{% endif %}
+</section>
+{% endblock %}

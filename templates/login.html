@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Administrator login · Smart Village{% endblock %}
+{% block content %}
+<section class="login-layout">
+  <div class="login-intro"><p class="eyebrow">ADMINISTRATION</p><h1>Administrator login</h1><p class="muted">Sign in to manage village and development project records.</p><div class="notice"><strong>Prototype authentication.</strong> This sample login demonstrates hashed passwords and restricted admin pages. Strengthen it before any real-world deployment.</div></div>
+  <form class="panel login-card" method="post">
+    <h2>Sign in</h2><p class="muted">Use the demo administrator account listed in the README.</p>
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <label>Username<input name="username" autocomplete="username" required maxlength="80" autofocus value="{{ request.form.get('username', '') }}"></label>
+    <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="button button-primary button-wide" type="submit">Sign in</button>
+    <p class="small-note">Passwords are stored as secure hashes in the local SQLite database, not as plain text.</p>
+  </form>
+</section>
+{% endblock %}

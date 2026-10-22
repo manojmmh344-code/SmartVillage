@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Analytics · Smart Village{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">DATA EXPLORATION</p><h1>Village analytics</h1><p class="muted">Compare infrastructure indicators and project progress in the sample dataset.</p></div></div>
+<div class="notice">These charts use fictional demonstration data stored in this application, not live government information.</div>
+<section class="panel">
+  <div class="panel-heading panel-heading-wrap"><div><h2>Village comparison</h2><p>Change the indicator to compare all villages.</p></div><label class="inline-select">Compare by <select id="indicator-select"><option value="schools">Education facilities (schools)</option><option value="health">Healthcare facilities</option><option value="roads">Road development rating</option><option value="water">Drinking water availability</option></select></label></div>
+  <div class="chart-wrap chart-wrap-large"><canvas id="analytics-village-chart" aria-label="Bar chart comparing selected village indicator"></canvas></div>
+  <script id="analytics-data" type="application/json">{{ villages|map(attribute='name')|list|tojson }}</script>
+  <script id="analytics-schools" type="application/json">{{ villages|map(attribute='schools')|list|tojson }}</script>
+  <script id="analytics-health" type="application/json">{{ villages|map(attribute='healthcare_centers')|list|tojson }}</script>
+  <script id="analytics-water" type="application/json">{{ villages|map(attribute='water_availability')|list|tojson }}</script>
+  <script id="analytics-roads" type="application/json">{{ villages|map(attribute='road_status')|list|tojson }}</script>
+</section>
+<section class="content-grid analytics-bottom">
+  <article class="panel"><div class="panel-heading"><div><h2>Project completion status</h2><p>Current project totals by status</p></div></div><div class="chart-wrap chart-wrap-small"><canvas id="analytics-project-chart" aria-label="Doughnut chart of project completion status"></canvas></div>
+  <script id="analytics-project-labels" type="application/json">{{ project_statuses|map(attribute='status')|list|tojson }}</script><script id="analytics-project-values" type="application/json">{{ project_statuses|map(attribute='total')|list|tojson }}</script></article>
+  <article class="panel"><h2>How to read the indicators</h2><ul class="plain-list"><li><strong>Education:</strong> sample count of schools in each village.</li><li><strong>Healthcare:</strong> sample count of healthcare centers.</li><li><strong>Road development:</strong> rating mapped from Needs improvement (40), Fair (70), Good (100).</li><li><strong>Drinking water:</strong> estimated sample availability percentage.</li></ul><p class="small-note">These values are illustrative and should not be used for real-world decisions.</p></article>
+</section>
+{% endblock %}

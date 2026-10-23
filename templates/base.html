@@ -44,6 +44,7 @@
         <a href="{{ url_for('officer_projects') }}"><span aria-hidden="true">▤</span> Village projects</a>
         <a href="{{ url_for('officer_complaints') }}"><span aria-hidden="true">!</span> Village complaints</a>
         <a href="{{ url_for('officer_reports') }}"><span aria-hidden="true">▧</span> Village reports</a>
+        <a href="{{ url_for('gis_map') }}"><span aria-hidden="true">◎</span> Village GIS map</a>
       </nav>
       {% elif current_user and current_user.role == 'citizen' %}
       <div class="nav-label">CITIZEN ACCOUNT</div>

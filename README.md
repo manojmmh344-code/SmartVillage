@@ -52,8 +52,9 @@ Open <http://127.0.0.1:5000> in your browser after the server starts. The SQLite
 
 ## 5. Authentication and roles
 
+- **Public sign-in page:** `/auth` shows only Citizen Login/Register and Village Officer Login. Administrator sign-in is not advertised on the public page, and administrator management routes require an authenticated administrator account.
 - **Citizen:** Register with a unique email and password, sign in separately, submit complaints, see only complaints owned by their account, and update their own name, mobile number, or password.
-- **Village Officer:** Cannot self-register. A System Administrator creates an account with a village assignment, department, and optional import permission, then explicitly approves and activates it. Officer pages and database queries are scoped to that assigned village. The current project has no data-import endpoint, so no import action is available yet.
+- **Village Officer:** Cannot self-register. A System Administrator creates an account with an official email, password hash, and one existing village assignment, then explicitly approves and activates it. Officers sign in on the common `/login/officer` page and are routed to the assigned village dashboard; village assignments are read from the authenticated database account, never chosen at login. Database triggers reject officer accounts without a valid village. Shared village, project, GIS, analytics, and report views are filtered for signed-in officers, and cross-village record changes return HTTP 403. The administrator can deactivate accounts and securely reset passwords, which revokes active sessions. The current project has no data-import endpoint, so no import action is available yet.
 - **System Administrator:** The initial administrator is bootstrapped from private environment variables. Only administrators can create, assign, approve, deactivate, and grant import permission to officer accounts.
 - All browser state-changing requests use the existing CSRF-protected Flask session. Login/registration attempts are rate-limited. Sessions are rechecked against the active database account on each request.
 - The same role checks are enforced in the Flask routes; hidden UI controls are not the security boundary.
@@ -89,7 +90,7 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-Open <http://127.0.0.1:5000>. Register a citizen at **Sign in → Create account**, then sign in to submit a report and view its status history in **My dashboard**. Sign in as the System Administrator to search complaints, create an officer, and approve the officer account.
+Open <http://127.0.0.1:5000>. Register a citizen at **Sign in → Create account**, then sign in to submit a report and view its status history in **My dashboard**. To provision officers, use the administrator account at `/login/admin`, open **Village officers**, create an officer using an existing village, then approve and activate the account. Repeat with different existing villages to demonstrate separate assignments. Do not reuse or store passwords in source code; deliver temporary credentials to the intended officer securely and reset them from the protected account-management page when needed.
 
 Open **GIS Village Map** to filter the existing sample villages and facilities. Starter villages are fictional and do not have verified coordinates, so their entries appear in the village list without false map pins. As an administrator, add a facility or edit a village and enter coordinates only after verifying them from a trusted source; tick the verification checkbox to allow the marker to appear. No real coordinates are included as sample data.
 
@@ -107,13 +108,26 @@ Quick checklist:
 
 1. Register a citizen with matching passwords; confirm a duplicate email is rejected and the account role is `citizen`.
 2. Sign in as the citizen; submit a complaint and confirm only that account can see its history.
-3. Sign in as System Administrator; create an officer assigned to Greenfield and confirm the officer cannot sign in before approval.
-4. Approve and activate the officer; verify the assigned village dashboard, project/report filters, and village complaint management.
-5. While signed in as the officer, change a URL to another village/complaint/project ID; confirm the server denies access.
+3. Sign in as System Administrator; create three officers assigned to Greenfield, Riverbend, and Sunrise Hamlet. Confirm each cannot sign in before approval.
+4. Approve and activate the three officers one at a time; verify each lands on only the assigned village dashboard, GIS map, analytics, and report.
+5. While signed in as an officer, change a URL to another village/complaint/project ID or submit another village's ID in a project form; confirm the server returns HTTP 403 and makes no changes.
 6. Confirm the citizen cannot open officer or administrator pages, and that login endpoints reject repeated failed attempts.
 7. Verify admin-only officer creation/assignment/deactivation, CSRF checks, and logout/session invalidation.
 8. Open the GIS map; confirm villages without verified coordinates stay in the list without markers. Add verified coordinates only when checked against a reliable source.
 9. Check existing public dashboard, Education, village, project, charts, and reports pages.
+
+The automated tests create three temporary officer accounts with randomly generated test-only passwords in a temporary SQLite database; they do not add sample credentials to `database.db`. Run the authorization and regression checks from the VS Code PowerShell terminal:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m unittest -v test_app
+```
+
+Then start the application for a manual demonstration:
+
+```powershell
+python app.py
+```
 
 ## 8. Resetting the sample database
 

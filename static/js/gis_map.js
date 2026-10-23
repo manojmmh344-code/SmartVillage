@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const villages = parse("village-map-data");
   const facilities = parse("facility-map-data");
   const detailUrl = parse("map-url-template");
+  const officerMapCenter = parse("officer-map-center");
   const mapElement = document.getElementById("village-map");
   const listElement = document.getElementById("village-list");
   const searchInput = document.getElementById("map-search");
@@ -81,7 +82,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const villageMarkers = new Map();
   const facilityLayers = new Map();
   if (window.L) {
-    map = L.map(mapElement, { scrollWheelZoom: true }).setView([20, 0], 2);
+    map = L.map(mapElement, { scrollWheelZoom: true }).setView(
+      officerMapCenter || [20, 0],
+      officerMapCenter ? 13 : 2,
+    );
     const tileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',

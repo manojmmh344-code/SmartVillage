@@ -363,6 +363,35 @@ def init_db():
         CREATE INDEX IF NOT EXISTS login_attempts_time_idx ON login_attempts (attempted_at);
         """
     )
+    db.execute(
+        """UPDATE users SET is_approved=0, is_active=0
+           WHERE role='village_officer'
+             AND (assigned_village_id IS NULL OR NOT EXISTS (
+                 SELECT 1 FROM villages WHERE villages.id = users.assigned_village_id
+             ))"""
+    )
+    db.executescript(
+        """
+        CREATE TRIGGER IF NOT EXISTS users_officer_village_insert
+        BEFORE INSERT ON users
+        WHEN NEW.role = 'village_officer'
+          AND (NEW.assigned_village_id IS NULL OR NOT EXISTS (
+              SELECT 1 FROM villages WHERE villages.id = NEW.assigned_village_id
+          ))
+        BEGIN
+            SELECT RAISE(ABORT, 'Village officers must be assigned to an existing village');
+        END;
+        CREATE TRIGGER IF NOT EXISTS users_officer_village_update
+        BEFORE UPDATE OF role, assigned_village_id ON users
+        WHEN NEW.role = 'village_officer'
+          AND (NEW.assigned_village_id IS NULL OR NOT EXISTS (
+              SELECT 1 FROM villages WHERE villages.id = NEW.assigned_village_id
+          ))
+        BEGIN
+            SELECT RAISE(ABORT, 'Village officers must be assigned to an existing village');
+        END;
+        """
+    )
     village_columns = {
         row["name"] for row in db.execute("PRAGMA table_info(villages)").fetchall()
     }
@@ -474,9 +503,11 @@ def admin_required(view):
     @wraps(view)
     def wrapped_view(**kwargs):
         user = getattr(g, "current_user", None)
-        if user is None or user["role"] != "system_admin":
+        if user is None:
             flash("Please sign in with an administrator account to manage records.", "warning")
             return redirect(url_for("admin_login", next=request.path))
+        if user["role"] != "system_admin":
+            abort(403)
         return view(**kwargs)
 
     return wrapped_view
@@ -522,6 +553,10 @@ def assigned_village_id():
     if user is None or user["role"] != "village_officer":
         abort(403)
     if not user["is_approved"] or not user["is_active"] or not user["assigned_village_id"]:
+        abort(403)
+    if not get_db().execute(
+        "SELECT 1 FROM villages WHERE id = ?", (user["assigned_village_id"],)
+    ).fetchone():
         abort(403)
     return user["assigned_village_id"]
 
@@ -605,12 +640,20 @@ def login_for_role(role, identifier, password):
     key = login_attempt_key(identifier, role)
     if login_is_limited(key):
         return None, True
-    user = get_db().execute(
-        """SELECT * FROM users
-           WHERE (email = ? COLLATE NOCASE OR username = ?)
-             AND role = ? AND is_active = 1 AND is_approved = 1""",
-        (identifier, identifier, role),
-    ).fetchone()
+    if role == "village_officer":
+        user = get_db().execute(
+            """SELECT * FROM users
+               WHERE email = ? COLLATE NOCASE
+                 AND role = ? AND is_active = 1 AND is_approved = 1""",
+            (identifier, role),
+        ).fetchone()
+    else:
+        user = get_db().execute(
+            """SELECT * FROM users
+               WHERE (email = ? COLLATE NOCASE OR username = ?)
+                 AND role = ? AND is_active = 1 AND is_approved = 1""",
+            (identifier, identifier, role),
+        ).fetchone()
     if user is None or not check_password_hash(user["password_hash"], password):
         record_login_failure(key)
         return None, False
@@ -676,7 +719,7 @@ def read_project_form():
     user = getattr(g, "current_user", None)
     if user is not None and user["role"] == "village_officer":
         if assigned_village_id() != village_id:
-            raise ValueError("Projects can only be assigned to your approved village.")
+            abort(403)
     return name, village_id, department, budget, start_date, expected_date, status
 
 
@@ -774,31 +817,68 @@ def read_complaint_form():
 @app.route("/")
 def index():
     db = get_db()
-    villages = db.execute("SELECT * FROM villages ORDER BY name").fetchall()
-    projects = db.execute(
-        """SELECT projects.*, villages.name AS village_name
-           FROM projects JOIN villages ON villages.id = projects.village_id
-           ORDER BY projects.id DESC LIMIT 6"""
-    ).fetchall()
-    counts = {
-        "villages": db.execute("SELECT COUNT(*) FROM villages").fetchone()[0],
-        "schools": db.execute("SELECT COALESCE(SUM(schools), 0) FROM villages").fetchone()[0],
-        "healthcare": db.execute("SELECT COALESCE(SUM(healthcare_centers), 0) FROM villages").fetchone()[0],
-        "projects": db.execute("SELECT COUNT(*) FROM projects").fetchone()[0],
-        "completed": db.execute("SELECT COUNT(*) FROM projects WHERE status = 'Completed'").fetchone()[0],
-        "in_progress": db.execute("SELECT COUNT(*) FROM projects WHERE status = 'In Progress'").fetchone()[0],
-    }
+    user = getattr(g, "current_user", None)
+    if user is not None and user["role"] == "village_officer":
+        village_id = assigned_village_id()
+        villages = db.execute(
+            "SELECT * FROM villages WHERE id = ? ORDER BY name", (village_id,)
+        ).fetchall()
+        projects = db.execute(
+            """SELECT projects.*, villages.name AS village_name
+               FROM projects JOIN villages ON villages.id = projects.village_id
+               WHERE projects.village_id = ? ORDER BY projects.id DESC LIMIT 6""",
+            (village_id,),
+        ).fetchall()
+        village = villages[0]
+        counts = {
+            "villages": 1,
+            "schools": village["schools"],
+            "healthcare": village["healthcare_centers"],
+            "projects": db.execute(
+                "SELECT COUNT(*) FROM projects WHERE village_id = ?", (village_id,)
+            ).fetchone()[0],
+            "completed": db.execute(
+                "SELECT COUNT(*) FROM projects WHERE village_id = ? AND status = 'Completed'",
+                (village_id,),
+            ).fetchone()[0],
+            "in_progress": db.execute(
+                "SELECT COUNT(*) FROM projects WHERE village_id = ? AND status = 'In Progress'",
+                (village_id,),
+            ).fetchone()[0],
+        }
+    else:
+        villages = db.execute("SELECT * FROM villages ORDER BY name").fetchall()
+        projects = db.execute(
+            """SELECT projects.*, villages.name AS village_name
+               FROM projects JOIN villages ON villages.id = projects.village_id
+               ORDER BY projects.id DESC LIMIT 6"""
+        ).fetchall()
+        counts = {
+            "villages": db.execute("SELECT COUNT(*) FROM villages").fetchone()[0],
+            "schools": db.execute("SELECT COALESCE(SUM(schools), 0) FROM villages").fetchone()[0],
+            "healthcare": db.execute("SELECT COALESCE(SUM(healthcare_centers), 0) FROM villages").fetchone()[0],
+            "projects": db.execute("SELECT COUNT(*) FROM projects").fetchone()[0],
+            "completed": db.execute("SELECT COUNT(*) FROM projects WHERE status = 'Completed'").fetchone()[0],
+            "in_progress": db.execute("SELECT COUNT(*) FROM projects WHERE status = 'In Progress'").fetchone()[0],
+        }
     return render_template("index.html", villages=villages, projects=projects, counts=counts)
 
 
 @app.route("/villages")
 def villages():
     search = request.args.get("q", "").strip()
+    user = getattr(g, "current_user", None)
+    village_scope = (
+        assigned_village_id()
+        if user is not None and user["role"] == "village_officer"
+        else None
+    )
     rows = get_db().execute(
         """SELECT * FROM villages
-           WHERE name LIKE ? OR district LIKE ?
+           WHERE (? IS NULL OR id = ?)
+             AND (name LIKE ? OR district LIKE ?)
            ORDER BY name""",
-        (f"%{search}%", f"%{search}%"),
+        (village_scope, village_scope, f"%{search}%", f"%{search}%"),
     ).fetchall()
     return render_template("villages.html", villages=rows, search=search)
 
@@ -806,6 +886,13 @@ def villages():
 @app.route("/villages/<int:village_id>")
 def village_details(village_id):
     db = get_db()
+    user = getattr(g, "current_user", None)
+    if (
+        user is not None
+        and user["role"] == "village_officer"
+        and assigned_village_id() != village_id
+    ):
+        abort(403)
     village = db.execute("SELECT * FROM villages WHERE id = ?", (village_id,)).fetchone()
     if village is None:
         abort(404)
@@ -958,11 +1045,13 @@ def officer_complaint_details(complaint_row_id):
     complaint = db.execute(
         """SELECT complaints.*, villages.name AS village_name
            FROM complaints JOIN villages ON villages.id = complaints.village_id
-           WHERE complaints.id = ? AND complaints.village_id = ?""",
-        (complaint_row_id, village_id),
+           WHERE complaints.id = ?""",
+        (complaint_row_id,),
     ).fetchone()
     if complaint is None:
         abort(404)
+    if complaint["village_id"] != village_id:
+        abort(403)
     if request.method == "POST":
         status = request.form.get("status", "").strip()
         remarks = request.form.get("remarks", "").strip()
@@ -1050,11 +1139,13 @@ def officer_edit_project(project_id):
     db = get_db()
     village_id = assigned_village_id()
     project = db.execute(
-        "SELECT * FROM projects WHERE id = ? AND village_id = ?",
-        (project_id, village_id),
+        "SELECT * FROM projects WHERE id = ?",
+        (project_id,),
     ).fetchone()
     if project is None:
         abort(404)
+    if project["village_id"] != village_id:
+        abort(403)
     if request.method == "POST":
         try:
             values = read_project_form()
@@ -1077,20 +1168,7 @@ def officer_edit_project(project_id):
 @app.get("/officer/reports")
 @roles_required("village_officer")
 def officer_reports():
-    village_id = assigned_village_id()
-    db = get_db()
-    village = db.execute("SELECT * FROM villages WHERE id = ?", (village_id,)).fetchone()
-    project_total = db.execute(
-        "SELECT COUNT(*) FROM projects WHERE village_id = ?", (village_id,)
-    ).fetchone()[0]
-    attention_villages = [
-        village for village in [village]
-        if village["water_availability"] < 70 or village["road_status"] == "Needs improvement"
-    ]
-    return render_template(
-        "reports.html", villages=[village], project_total=project_total,
-        attention_villages=attention_villages,
-    )
+    return redirect(url_for("reports"))
 
 
 @app.route("/admin/villages/new", methods=["GET", "POST"])
@@ -1132,7 +1210,15 @@ def edit_village(village_id):
     if request.method == "POST":
         try:
             values = read_village_form()
-            coordinates = read_coordinates_form()
+            coordinates = (
+                read_coordinates_form()
+                if user["role"] == "system_admin"
+                else (
+                    village["latitude"],
+                    village["longitude"],
+                    village["coordinates_verified"],
+                )
+            )
             db.execute(
                 """UPDATE villages SET name=?, district=?, population=?, schools=?,
                    healthcare_centers=?, road_status=?, water_availability=?, agriculture=?,
@@ -1174,6 +1260,10 @@ def projects():
     status_filter = request.args.get("status", "").strip()
     conditions = ["(projects.name LIKE ? OR villages.name LIKE ?)"]
     parameters = [f"%{search}%", f"%{search}%"]
+    user = getattr(g, "current_user", None)
+    if user is not None and user["role"] == "village_officer":
+        conditions.append("projects.village_id = ?")
+        parameters.append(assigned_village_id())
     if status_filter in ("Planned", "In Progress", "Completed"):
         conditions.append("projects.status = ?")
         parameters.append(status_filter)
@@ -1534,9 +1624,11 @@ def complaint_photo(complaint_row_id):
     user = g.current_user
     if user["role"] == "village_officer":
         complaint = get_db().execute(
-            "SELECT photo_path FROM complaints WHERE id = ? AND village_id = ?",
-            (complaint_row_id, assigned_village_id()),
+            "SELECT village_id, photo_path FROM complaints WHERE id = ?",
+            (complaint_row_id,),
         ).fetchone()
+        if complaint is not None and complaint["village_id"] != assigned_village_id():
+            abort(403)
     else:
         complaint = get_db().execute(
             "SELECT photo_path FROM complaints WHERE id = ?", (complaint_row_id,)
@@ -1655,27 +1747,43 @@ def delete_facility(facility_id):
 @app.get("/gis-map")
 def gis_map():
     db = get_db()
+    user = getattr(g, "current_user", None)
+    officer_village_id = (
+        assigned_village_id()
+        if user is not None and user["role"] == "village_officer"
+        else None
+    )
+    selected_village = request.args.get("village", "")
+    if officer_village_id is not None:
+        if selected_village and selected_village != str(officer_village_id):
+            abort(403)
+        selected_village = str(officer_village_id)
+    village_filter = "WHERE villages.id = ?" if officer_village_id is not None else ""
+    scope_parameters = (officer_village_id,) if officer_village_id is not None else ()
     villages = db.execute(
-        """SELECT villages.*,
-                  (SELECT COUNT(*) FROM facilities WHERE facilities.village_id = villages.id
-                   AND facilities.facility_type = 'School') AS mapped_schools,
-                  (SELECT COUNT(*) FROM facilities WHERE facilities.village_id = villages.id
-                   AND facilities.facility_type = 'Healthcare Center') AS mapped_healthcare,
-                  (SELECT COUNT(*) FROM facilities WHERE facilities.village_id = villages.id
-                   AND facilities.facility_type = 'Drinking Water Facility') AS mapped_water,
-                  (SELECT COUNT(*) FROM projects WHERE projects.village_id = villages.id) AS project_count,
-                  (SELECT COUNT(*) FROM projects WHERE projects.village_id = villages.id
-                   AND projects.status = 'Planned') AS planned_projects,
-                  (SELECT COUNT(*) FROM projects WHERE projects.village_id = villages.id
-                   AND projects.status = 'In Progress') AS in_progress_projects,
-                  (SELECT COUNT(*) FROM projects WHERE projects.village_id = villages.id
-                   AND projects.status = 'Completed') AS completed_projects
-           FROM villages ORDER BY villages.name"""
+        f"""SELECT villages.*,
+                   (SELECT COUNT(*) FROM facilities WHERE facilities.village_id = villages.id
+                    AND facilities.facility_type = 'School') AS mapped_schools,
+                   (SELECT COUNT(*) FROM facilities WHERE facilities.village_id = villages.id
+                    AND facilities.facility_type = 'Healthcare Center') AS mapped_healthcare,
+                   (SELECT COUNT(*) FROM facilities WHERE facilities.village_id = villages.id
+                    AND facilities.facility_type = 'Drinking Water Facility') AS mapped_water,
+                   (SELECT COUNT(*) FROM projects WHERE projects.village_id = villages.id) AS project_count,
+                   (SELECT COUNT(*) FROM projects WHERE projects.village_id = villages.id
+                    AND projects.status = 'Planned') AS planned_projects,
+                   (SELECT COUNT(*) FROM projects WHERE projects.village_id = villages.id
+                    AND projects.status = 'In Progress') AS in_progress_projects,
+                   (SELECT COUNT(*) FROM projects WHERE projects.village_id = villages.id
+                    AND projects.status = 'Completed') AS completed_projects
+            FROM villages {village_filter} ORDER BY villages.name""",
+        scope_parameters,
     ).fetchall()
     facilities = db.execute(
-        """SELECT facilities.*, villages.name AS village_name, villages.district
-           FROM facilities JOIN villages ON villages.id = facilities.village_id
-           ORDER BY villages.name, facilities.facility_type, facilities.facility_name"""
+        f"""SELECT facilities.*, villages.name AS village_name, villages.district
+            FROM facilities JOIN villages ON villages.id = facilities.village_id
+            {("WHERE facilities.village_id = ?" if officer_village_id is not None else "")}
+            ORDER BY villages.name, facilities.facility_type, facilities.facility_name""",
+        scope_parameters,
     ).fetchall()
     mapped_villages = sum(
         1 for village in villages
@@ -1694,26 +1802,67 @@ def gis_map():
         mapped_villages=mapped_villages,
         mapped_facilities=mapped_facilities,
         facility_types=FACILITY_TYPES,
-        selected_village=request.args.get("village", ""),
+        selected_village=selected_village,
         village_data=[dict(village) for village in villages],
         facility_data=[dict(facility) for facility in facilities],
+        officer_map_center=(
+            [villages[0]["latitude"], villages[0]["longitude"]]
+            if officer_village_id is not None
+            and villages
+            and villages[0]["coordinates_verified"]
+            and villages[0]["latitude"] is not None
+            and villages[0]["longitude"] is not None
+            else None
+        ),
     )
 
 
 @app.route("/analytics")
 def analytics():
-    villages = get_db().execute("SELECT * FROM villages ORDER BY name").fetchall()
-    project_statuses = get_db().execute(
-        "SELECT status, COUNT(*) AS total FROM projects GROUP BY status"
-    ).fetchall()
+    db = get_db()
+    user = getattr(g, "current_user", None)
+    if user is not None and user["role"] == "village_officer":
+        village_id = assigned_village_id()
+        villages = db.execute(
+            "SELECT * FROM villages WHERE id = ? ORDER BY name", (village_id,)
+        ).fetchall()
+        project_statuses = db.execute(
+            """SELECT status, COUNT(*) AS total FROM projects
+               WHERE village_id = ? GROUP BY status""",
+            (village_id,),
+        ).fetchall()
+    else:
+        villages = db.execute("SELECT * FROM villages ORDER BY name").fetchall()
+        project_statuses = db.execute(
+            "SELECT status, COUNT(*) AS total FROM projects GROUP BY status"
+        ).fetchall()
     return render_template("analytics.html", villages=villages, project_statuses=project_statuses)
 
 
 @app.route("/reports")
 def reports():
     db = get_db()
-    villages = db.execute("SELECT * FROM villages ORDER BY name").fetchall()
-    project_total = db.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+    user = getattr(g, "current_user", None)
+    if user is not None and user["role"] == "village_officer":
+        village_id = assigned_village_id()
+        villages = db.execute(
+            "SELECT * FROM villages WHERE id = ? ORDER BY name", (village_id,)
+        ).fetchall()
+        project_total = db.execute(
+            "SELECT COUNT(*) FROM projects WHERE village_id = ?", (village_id,)
+        ).fetchone()[0]
+        complaint_statuses = db.execute(
+            """SELECT status, COUNT(*) AS total FROM complaints
+               WHERE village_id = ? GROUP BY status""",
+            (village_id,),
+        ).fetchall()
+    else:
+        villages = db.execute("SELECT * FROM villages ORDER BY name").fetchall()
+        project_total = db.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+        complaint_statuses = db.execute(
+            "SELECT status, COUNT(*) AS total FROM complaints GROUP BY status"
+        ).fetchall()
+    complaint_total = sum(row["total"] for row in complaint_statuses)
     attention_villages = [
         village for village in villages
         if village["water_availability"] < 70 or village["road_status"] == "Needs improvement"
@@ -1722,6 +1871,8 @@ def reports():
         "reports.html",
         villages=villages,
         project_total=project_total,
+        complaint_total=complaint_total,
+        complaint_statuses=complaint_statuses,
         attention_villages=attention_villages,
     )
 
@@ -1867,6 +2018,8 @@ def handle_role_login(role, title, description):
                     return jsonify(
                         {"user": public_user(user), "csrf_token": session["_csrf_token"]}
                     )
+                if user["role"] == "village_officer":
+                    return redirect(url_for("officer_dashboard"))
                 next_url = request.args.get("next", "")
                 if next_url.startswith("/") and not next_url.startswith("//") and "\\" not in next_url:
                     return redirect(next_url)
@@ -2041,6 +2194,35 @@ def admin_edit_officer(officer_id):
                     return redirect(url_for("admin_officers"))
     villages = db.execute("SELECT id, name FROM villages ORDER BY name").fetchall()
     return render_template("officer_form.html", officer=officer, villages=villages)
+
+
+@app.post("/admin/officers/<int:officer_id>/reset-password")
+@admin_required
+def admin_reset_officer_password(officer_id):
+    officer = get_db().execute(
+        "SELECT id FROM users WHERE id = ? AND role = 'village_officer'",
+        (officer_id,),
+    ).fetchone()
+    if officer is None:
+        abort(404)
+    try:
+        password = validate_password(request.form.get("password", ""))
+    except ValueError as error:
+        flash(str(error), "error")
+        return redirect(url_for("admin_edit_officer", officer_id=officer_id))
+    db = get_db()
+    db.execute(
+        """UPDATE users SET password_hash=?, session_version=session_version+1,
+           updated_at=? WHERE id=? AND role='village_officer'""",
+        (
+            generate_password_hash(password),
+            datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            officer_id,
+        ),
+    )
+    db.commit()
+    flash("Officer password reset. Any existing officer sessions have been signed out.", "success")
+    return redirect(url_for("admin_edit_officer", officer_id=officer_id))
 
 
 @app.post("/api/admin/officers")

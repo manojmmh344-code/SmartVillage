@@ -6,8 +6,8 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 {% endblock %}
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">GEOGRAPHIC INFORMATION</p><h1>GIS Village Map</h1><p class="muted">Explore villages and registered facilities. Only administrator-verified coordinates appear on the map.</p></div>{% if current_user and current_user.role == 'system_admin' %}<a class="button button-primary" href="{{ url_for('add_facility') }}">＋ Add facility</a>{% endif %}</div>
-<div class="notice"><strong>Location data note.</strong> Existing sample villages have no verified coordinates, so no village markers are shown until verified locations are entered. This map does not claim to show live government data.</div>
+<div class="page-heading"><div><p class="eyebrow">GEOGRAPHIC INFORMATION</p><h1>{% if current_user and current_user.role == 'village_officer' %}{{ villages[0].name }} GIS Map{% else %}GIS Village Map{% endif %}</h1><p class="muted">{% if current_user and current_user.role == 'village_officer' %}Only facilities and records for your assigned village are shown.{% else %}Explore villages and registered facilities. Only administrator-verified coordinates appear on the map.{% endif %}</p></div>{% if current_user and current_user.role == 'system_admin' %}<a class="button button-primary" href="{{ url_for('add_facility') }}">＋ Add facility</a>{% endif %}</div>
+<div class="notice"><strong>Location data note.</strong> {% if current_user and current_user.role == 'village_officer' %}{% if officer_map_center %}The map is centered on {{ villages[0].name }} using its verified coordinates.{% else %}{{ villages[0].name }} has no verified coordinates, so it cannot be accurately centered or shown as a map marker yet. No other village locations are exposed.{% endif %}{% else %}Existing sample villages have no verified coordinates, so no village markers are shown until verified locations are entered. This map does not claim to show live government data.{% endif %}</div>
 <section class="stat-grid map-stats"><article class="stat-card"><span class="stat-label">Mapped villages</span><strong>{{ mapped_villages }}</strong><small>Verified coordinates only</small></article><article class="stat-card"><span class="stat-label">Mapped facilities</span><strong>{{ mapped_facilities }}</strong><small>Verified coordinates only</small></article><article class="stat-card"><span class="stat-label">All villages</span><strong>{{ villages|length }}</strong><small>Including villages without coordinates</small></article></section>
 <section class="map-layout">
   <aside class="panel map-sidebar" aria-label="Map filters">
@@ -27,5 +27,6 @@
 <script id="village-map-data" type="application/json">{{ village_data|tojson }}</script>
 <script id="facility-map-data" type="application/json">{{ facility_data|tojson }}</script>
 <script id="map-url-template" type="application/json">{{ url_for('village_details', village_id=0)|tojson }}</script>
+<script id="officer-map-center" type="application/json">{{ officer_map_center|tojson }}</script>
 {% endblock %}
 {% block page_scripts %}<script defer src="{{ url_for('static', filename='js/gis_map.js') }}"></script>{% endblock %}

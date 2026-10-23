@@ -7,7 +7,7 @@
   <form class="panel auth-form-card" method="post">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     <h2>Sign in</h2>
-    <label>{% if role == 'village_officer' %}Official email or assigned username{% else %}Email address{% endif %}<input name="email" type="{% if role == 'village_officer' %}text{% else %}email{% endif %}" autocomplete="username" maxlength="254" required autofocus value="{{ request.form.get('email', '') }}"></label>
+    <label>Email address<input name="email" type="email" autocomplete="username" maxlength="254" required autofocus value="{{ request.form.get('email', '') }}"></label>
     <label>Password<input type="password" name="password" autocomplete="current-password" maxlength="256" required></label>
     <button class="button button-primary button-wide" type="submit">Sign in</button>
     {% if role == 'citizen' %}<p class="small-note">New here? <a class="text-link" href="{{ url_for('citizen_register') }}">Create a citizen account</a></p>{% endif %}

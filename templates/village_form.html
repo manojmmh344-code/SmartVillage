@@ -14,9 +14,13 @@
     <label>Road status<select name="road_status" required><option value="">Choose status</option>{% for option in ['Good', 'Fair', 'Needs improvement'] %}<option value="{{ option }}" {{ 'selected' if request.form.get('road_status', village.road_status if village else '') == option else '' }}>{{ option }}</option>{% endfor %}</select></label>
     <label>Drinking water availability (%)<input name="water_availability" type="number" min="0" max="100" required value="{{ request.form.get('water_availability', village.water_availability if village else '') }}"></label>
     <label class="form-full">Main agriculture information<input name="agriculture" maxlength="200" required value="{{ request.form.get('agriculture', village.agriculture if village else '') }}" placeholder="e.g. rice, vegetables"></label>
+    {% if current_user.role == 'system_admin' %}
     <label>Latitude (verified only)<input name="latitude" type="number" min="-90" max="90" step="any" value="{{ request.form.get('latitude', village.latitude if village and village.latitude is not none else '') }}" placeholder="Leave blank if unknown"></label>
     <label>Longitude (verified only)<input name="longitude" type="number" min="-180" max="180" step="any" value="{{ request.form.get('longitude', village.longitude if village and village.longitude is not none else '') }}" placeholder="Leave blank if unknown"></label>
     <label class="form-full checkbox-label"><input type="checkbox" name="coordinates_verified" value="yes" {{ 'checked' if request.form.get('coordinates_verified') == 'yes' or village and village.coordinates_verified else '' }}> I have verified these coordinates from a reliable source (leave coordinates blank if not verified).</label>
+    {% else %}
+    <p class="notice form-full">Verified map coordinates are managed by a System Administrator. Your save will preserve the existing map location.</p>
+    {% endif %}
   </div>
   <div class="form-actions"><button class="button button-primary" type="submit">Save village</button><a class="button button-outline" href="{{ url_for('villages') }}">Cancel</a>
   </div>

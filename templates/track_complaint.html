@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Track Complaint · Smart Village{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/modules.css') }}">{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">CITIZEN SERVICES</p><h1>Track Complaint</h1><p class="muted">Sign in to your citizen account to securely view complaints you submitted.</p></div><a class="button button-outline" href="{{ url_for('manage_complaints') }}">Report a problem</a></div>
+<section class="panel tracking-search">
+  <form method="post" action="{{ url_for('track_complaint') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <label>Complaint ID<input name="complaint_id" required maxlength="40" autocomplete="off" value="{{ request.form.get('complaint_id', request.args.get('complaint_id', '')) }}" placeholder="e.g. SV-2026-ABC123"></label>
+    <button class="button button-primary" type="submit">Find complaint</button>
+  </form>
+  {% if lookup_failed %}<p class="flash flash-error" role="alert">Complaint ID or tracking token was not recognized. Check both values and try again.</p>{% endif %}
+</section>
+{% if complaint %}
+<section class="panel tracking-result">
+  <div class="tracking-heading"><div><p class="eyebrow">{{ complaint.complaint_id }}</p><h2>{{ complaint.title }}</h2></div><span class="status status-{{ complaint.status|lower|replace(' ', '-') }}">{{ complaint.status }}</span></div>
+  <dl class="tracking-summary"><div><dt>Village</dt><dd>{{ complaint.village_name }}</dd></div><div><dt>Category</dt><dd>{{ complaint.category }}</dd></div><div><dt>Submitted</dt><dd><time>{{ complaint.created_at }}</time></dd></div></dl>
+  <h3>Status update history</h3>
+  <ol class="status-timeline">{% for event in history %}<li class="timeline-event"><span class="timeline-dot" aria-hidden="true"></span><div><div class="timeline-heading"><strong>{{ event.new_status }}</strong><time>{{ event.updated_at }}</time></div>{% if event.previous_status %}<p class="timeline-transition">Updated from {{ event.previous_status }}</p>{% endif %}{% if event.remarks %}<p class="timeline-remarks">{{ event.remarks }}</p>{% endif %}</div></li>{% endfor %}</ol>
+  <p class="small-note">Only your signed-in account can view your complaints. Other citizens cannot access these records by guessing a complaint ID.</p>
+</section>
+{% endif %}
+{% endblock %}

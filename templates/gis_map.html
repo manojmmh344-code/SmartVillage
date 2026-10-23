@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}GIS Village Map · Smart Village{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/modules.css') }}">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">GEOGRAPHIC INFORMATION</p><h1>GIS Village Map</h1><p class="muted">Explore villages and registered facilities. Only administrator-verified coordinates appear on the map.</p></div>{% if current_user and current_user.role == 'system_admin' %}<a class="button button-primary" href="{{ url_for('add_facility') }}">＋ Add facility</a>{% endif %}</div>
+<div class="notice"><strong>Location data note.</strong> Existing sample villages have no verified coordinates, so no village markers are shown until verified locations are entered. This map does not claim to show live government data.</div>
+<section class="stat-grid map-stats"><article class="stat-card"><span class="stat-label">Mapped villages</span><strong>{{ mapped_villages }}</strong><small>Verified coordinates only</small></article><article class="stat-card"><span class="stat-label">Mapped facilities</span><strong>{{ mapped_facilities }}</strong><small>Verified coordinates only</small></article><article class="stat-card"><span class="stat-label">All villages</span><strong>{{ villages|length }}</strong><small>Including villages without coordinates</small></article></section>
+<section class="map-layout">
+  <aside class="panel map-sidebar" aria-label="Map filters">
+    <h2>Find and filter</h2>
+    <label>Search village<input id="map-search" type="search" placeholder="Type a village name"></label>
+    <label>Village<select id="village-filter"><option value="">All villages</option>{% for village in villages %}<option value="{{ village.id }}" {{ 'selected' if selected_village == village.id|string else '' }}>{{ village.name }}</option>{% endfor %}</select></label>
+    <label>District<select id="district-filter"><option value="">All districts</option>{% for district in villages|map(attribute='district')|unique|sort %}<option value="{{ district }}">{{ district }}</option>{% endfor %}</select></label>
+    <fieldset class="layer-options"><legend>Facility map layers</legend>{% for facility_type in facility_types %}<label class="layer-toggle"><input type="checkbox" class="facility-layer-toggle" value="{{ facility_type }}" checked><span class="map-legend-icon facility-icon-{{ loop.index }}"></span>{{ facility_type }}</label>{% endfor %}</fieldset>
+    <label>Infrastructure availability<select id="infrastructure-filter"><option value="">All infrastructure</option><option value="water-limited">Drinking water below 70%</option><option value="road-needs-work">Roads need improvement</option><option value="has-schools">Has schools</option><option value="has-healthcare">Has healthcare centers</option></select></label>
+    <label>Development project status<select id="project-status-filter"><option value="">All project statuses</option><option value="Planned">Planned</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option></select></label>
+    <p class="map-result-count" id="map-result-count" aria-live="polite"></p>
+    {% if current_user and current_user.role == 'system_admin' %}<a class="button button-outline button-wide" href="{{ url_for('add_facility') }}">＋ Register a facility</a>{% endif %}
+  </aside>
+  <div class="map-column"><div id="village-map" role="application" aria-label="Interactive map of villages and facilities"><p class="map-loading" id="map-loading" role="status">Loading map tiles...</p></div><div class="map-attribution-note">Map tiles © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></div><div id="map-error" class="flash flash-warning" hidden>Interactive map tiles are unavailable. Check your internet connection and reload.</div></div>
+</section>
+<section class="panel village-map-list"><div class="panel-heading"><div><h2>Villages and facilities</h2><p>Villages remain listed even when no verified location is available.</p></div></div><div id="village-list" class="map-list-grid"></div></section>
+<script id="village-map-data" type="application/json">{{ village_data|tojson }}</script>
+<script id="facility-map-data" type="application/json">{{ facility_data|tojson }}</script>
+<script id="map-url-template" type="application/json">{{ url_for('village_details', village_id=0)|tojson }}</script>
+{% endblock %}
+{% block page_scripts %}<script defer src="{{ url_for('static', filename='js/gis_map.js') }}"></script>{% endblock %}

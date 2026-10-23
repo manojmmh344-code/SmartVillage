@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}My profile · Smart Village{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">CITIZEN ACCOUNT</p><h1>My profile</h1><p class="muted">Update your own contact details or change your password.</p></div></div>
+<section class="panel auth-form-card profile-card"><form method="post" data-password-confirm><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><label>Full name<input name="name" minlength="2" maxlength="100" required value="{{ request.form.get('name', user.name) }}"></label><label>Email address<input type="email" value="{{ user.email }}" readonly aria-readonly="true"></label><label>Mobile number (optional)<input name="mobile_number" type="tel" maxlength="30" value="{{ request.form.get('mobile_number', user.mobile_number or '') }}"></label><h2>Change password</h2><label>Current password<input type="password" name="current_password" autocomplete="current-password"></label><label>New password<input type="password" name="new_password" minlength="12" maxlength="256" autocomplete="new-password"></label><label>Confirm new password<input type="password" name="confirm_password" minlength="12" maxlength="256" autocomplete="new-password"></label><p class="small-note">Leave all password fields blank to keep your current password.</p><button class="button button-primary" type="submit">Save profile</button></form></section>
+{% endblock %}
+{% block page_scripts %}<script defer src="{{ url_for('static', filename='js/auth.js') }}"></script>{% endblock %}

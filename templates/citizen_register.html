@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Citizen registration · Smart Village{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block content %}
+<section class="auth-form-layout">
+  <div class="auth-form-intro"><p class="eyebrow">CITIZEN ACCOUNT</p><h1>Create your account</h1><p class="muted">Register to submit complaints and securely view your personal complaint history.</p><p class="notice">Citizen permissions are assigned by the server. This form cannot create an officer or administrator account.</p><a class="text-link" href="{{ url_for('citizen_login') }}">Already registered? Citizen login</a></div>
+  <form class="panel auth-form-card" method="post" data-password-confirm>
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <h2>Citizen registration</h2>
+    <label>Full name<input name="name" minlength="2" maxlength="100" autocomplete="name" required value="{{ request.form.get('name', '') }}"></label>
+    <label>Email address<input name="email" type="email" maxlength="254" autocomplete="email" required value="{{ request.form.get('email', '') }}"></label>
+    <label>Mobile number <span class="muted">(optional)</span><input name="mobile_number" type="tel" maxlength="30" autocomplete="tel" value="{{ request.form.get('mobile_number', '') }}"></label>
+    <label>Password<input name="password" type="password" minlength="12" maxlength="256" autocomplete="new-password" required><small>Use at least 12 characters.</small></label>
+    <label>Confirm password<input name="confirm_password" type="password" minlength="12" maxlength="256" autocomplete="new-password" required></label>
+    <button class="button button-primary button-wide" type="submit">Register</button>
+    <p class="small-note">Passwords are hashed before they are stored. Email must be unique.</p>
+  </form>
+</section>
+{% endblock %}
+{% block page_scripts %}<script defer src="{{ url_for('static', filename='js/auth.js') }}"></script>{% endblock %}

@@ -19,30 +19,52 @@
       </a>
       <div class="nav-label">WORKSPACE</div>
       <nav class="side-nav" aria-label="Main navigation">
-        <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}"><span aria-hidden="true">▦</span> Dashboard</a>
-        <a href="{{ url_for('villages') }}" class="{{ 'active' if request.endpoint in ('villages', 'village_details') else '' }}"><span aria-hidden="true">⌂</span> Villages</a>
-        <a href="{{ url_for('projects') }}" class="{{ 'active' if request.endpoint == 'projects' else '' }}"><span aria-hidden="true">▤</span> Projects</a>
-        <a href="{{ url_for('analytics') }}" class="{{ 'active' if request.endpoint == 'analytics' else '' }}"><span aria-hidden="true">▥</span> Analytics</a>
-        <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint == 'reports' else '' }}"><span aria-hidden="true">▧</span> Reports</a>
+        <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}" {% if request.endpoint == 'index' %}aria-current="page"{% endif %}><span aria-hidden="true">▦</span> Dashboard</a>
+        <a href="{{ url_for('villages') }}" class="{{ 'active' if request.endpoint in ('villages', 'village_details') else '' }}" {% if request.endpoint in ('villages', 'village_details') %}aria-current="page"{% endif %}><span aria-hidden="true">⌂</span> Villages</a>
+        <a href="{{ url_for('projects') }}" class="{{ 'active' if request.endpoint == 'projects' else '' }}" {% if request.endpoint == 'projects' %}aria-current="page"{% endif %}><span aria-hidden="true">▤</span> Projects</a>
+        <a href="{{ url_for('analytics') }}" class="{{ 'active' if request.endpoint == 'analytics' else '' }}" {% if request.endpoint == 'analytics' %}aria-current="page"{% endif %}><span aria-hidden="true">▥</span> Analytics</a>
+        <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint == 'reports' else '' }}" {% if request.endpoint == 'reports' %}aria-current="page"{% endif %}><span aria-hidden="true">▧</span> Reports</a>
+        <a href="{{ url_for('education') }}" class="{{ 'active' if request.endpoint in ('education', 'education_service') else '' }}" {% if request.endpoint in ('education', 'education_service') %}aria-current="page"{% endif %}><span aria-hidden="true">▣</span> E-Education</a>
+        <a href="{{ url_for('manage_complaints') }}" class="{{ 'active' if request.endpoint == 'manage_complaints' else '' }}" {% if request.endpoint == 'manage_complaints' %}aria-current="page"{% endif %}><span aria-hidden="true">!</span> Manage Complaints</a>
+        <a href="{{ url_for('track_complaint') }}" class="{{ 'active' if request.endpoint == 'track_complaint' else '' }}" {% if request.endpoint == 'track_complaint' %}aria-current="page"{% endif %}><span aria-hidden="true">◷</span> Track Complaint</a>
+        <a href="{{ url_for('gis_map') }}" class="{{ 'active' if request.endpoint in ('gis_map', 'add_facility', 'edit_facility') else '' }}" {% if request.endpoint == 'gis_map' %}aria-current="page"{% endif %}><span aria-hidden="true">◎</span> GIS Village Map</a>
       </nav>
-      {% if session.get('user_role') == 'admin' %}
+      {% if current_user and current_user.role == 'system_admin' %}
       <div class="nav-label">ADMINISTRATION</div>
       <nav class="side-nav" aria-label="Administration navigation">
         <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint == 'admin_dashboard' else '' }}"><span aria-hidden="true">⚙</span> Admin panel</a>
+        <a href="{{ url_for('admin_complaints') }}" class="{{ 'active' if request.endpoint in ('admin_complaints', 'admin_complaint_details') else '' }}"><span aria-hidden="true">!</span> Complaints</a>
+        <a href="{{ url_for('admin_officers') }}" class="{{ 'active' if request.endpoint in ('admin_officers', 'admin_create_officer', 'admin_edit_officer') else '' }}"><span aria-hidden="true">♙</span> Village officers</a>
+        <a href="{{ url_for('add_facility') }}"><span aria-hidden="true">＋</span> Add facility</a>
+      </nav>
+      {% elif current_user and current_user.role == 'village_officer' %}
+      <div class="nav-label">VILLAGE OFFICER</div>
+      <nav class="side-nav" aria-label="Officer navigation">
+        <a href="{{ url_for('officer_dashboard') }}"><span aria-hidden="true">⌂</span> My village</a>
+        <a href="{{ url_for('officer_projects') }}"><span aria-hidden="true">▤</span> Village projects</a>
+        <a href="{{ url_for('officer_complaints') }}"><span aria-hidden="true">!</span> Village complaints</a>
+        <a href="{{ url_for('officer_reports') }}"><span aria-hidden="true">▧</span> Village reports</a>
+      </nav>
+      {% elif current_user and current_user.role == 'citizen' %}
+      <div class="nav-label">CITIZEN ACCOUNT</div>
+      <nav class="side-nav" aria-label="Citizen navigation">
+        <a href="{{ url_for('citizen_dashboard') }}"><span aria-hidden="true">⌂</span> My dashboard</a>
+        <a href="{{ url_for('citizen_profile') }}"><span aria-hidden="true">♙</span> My profile</a>
       </nav>
       {% endif %}
       <div class="sidebar-note"><strong>Sample project</strong><p>All village and project records are fictional demo data.</p></div>
     </aside>
+    <button class="sidebar-backdrop" type="button" aria-label="Close navigation" tabindex="-1"></button>
     <div class="main-column">
       <header class="topbar">
-        <button class="menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+        <button class="menu-toggle" type="button" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">☰</button>
         <div class="topbar-title">Village Development Portal <span class="demo-pill">DEMO DATA</span></div>
         <div class="account-area">
-          {% if session.get('username') %}
-            <span class="account-name">Signed in as <strong>{{ session.get('username') }}</strong></span>
+          {% if current_user %}
+            <span class="account-name">Signed in as <strong>{{ current_user.name }}</strong> · {{ current_user.role|replace('_', ' ')|title }}</span>
             <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="button button-outline button-small" type="submit">Sign out</button></form>
           {% else %}
-            <a class="button button-outline button-small" href="{{ url_for('login') }}">Administrator login</a>
+            <a class="button button-outline button-small" href="{{ url_for('auth_landing') }}">Sign in</a>
           {% endif %}
         </div>
       </header>
@@ -55,5 +77,6 @@
       <footer class="footer">Smart Village Informatics and Development Dashboard <span>College project prototype · fictional sample data</span></footer>
     </div>
   </div>
+  {% block page_scripts %}{% endblock %}
 </body>
 </html>

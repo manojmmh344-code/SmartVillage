@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Smart Village{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block content %}
+<section class="auth-hero">
+  <p class="eyebrow">SMART VILLAGE COMMUNITY PORTAL</p>
+  <h1>Welcome to your village dashboard</h1>
+  <p>Choose a secure sign-in path to access public information, manage your reports, or administer village services.</p>
+</section>
+<section class="auth-choice-grid" aria-label="Choose an account type">
+  <article class="auth-choice citizen-choice"><span class="auth-choice-icon" aria-hidden="true">♙</span><p class="eyebrow">COMMUNITY</p><h2>Citizen</h2><p>Browse village services, report a local issue, and track your own complaints.</p><div class="button-row"><a class="button button-primary" href="{{ url_for('citizen_login') }}">Citizen login</a><a class="button button-outline" href="{{ url_for('citizen_register') }}">Create account</a></div></article>
+  <article class="auth-choice officer-choice"><span class="auth-choice-icon" aria-hidden="true">⌂</span><p class="eyebrow">LOCAL SERVICES</p><h2>Village Officer</h2><p>Manage approved projects, village statistics, and complaints for your assigned village.</p><a class="button button-primary" href="{{ url_for('officer_login') }}">Village Officer login</a><p class="small-note">Officer accounts are created and approved by a System Administrator.</p></article>
+  <article class="auth-choice admin-choice"><span class="auth-choice-icon" aria-hidden="true">⚙</span><p class="eyebrow">SYSTEM ACCESS</p><h2>System Administrator</h2><p>Manage officer accounts, permissions, and authorized records across villages.</p><a class="button button-primary" href="{{ url_for('admin_login') }}">Administrator login</a><p class="small-note">Administrator registration is disabled. Bootstrap the first administrator from the server terminal.</p></article>
+</section>
+<p class="auth-return"><a class="text-link" href="{{ url_for('index') }}">← Return to the public dashboard</a></p>
+{% endblock %}

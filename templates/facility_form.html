@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ form_title }} · GIS{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/modules.css') }}">{% endblock %}
+{% block content %}
+<div class="breadcrumbs"><a href="{{ url_for('gis_map') }}">GIS Village Map</a><span>/</span>{{ form_title }}</div>
+<div class="page-heading"><div><p class="eyebrow">ADMINISTRATION</p><h1>{{ form_title }}</h1><p class="muted">Facility records are linked to existing villages. Unverified locations are listed but not mapped.</p></div></div>
+<section class="panel form-panel"><form method="post"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><div class="form-grid">
+  <label>Village <span class="required-mark">*</span><select name="village_id" required><option value="">Choose a village</option>{% for village in villages %}<option value="{{ village.id }}" {{ 'selected' if request.form.get('village_id', facility.village_id|string if facility else '') == village.id|string else '' }}>{{ village.name }}</option>{% endfor %}</select></label>
+  <label>Facility name <span class="required-mark">*</span><input name="facility_name" maxlength="160" required value="{{ request.form.get('facility_name', facility.facility_name if facility else '') }}"></label>
+  <label>Facility type <span class="required-mark">*</span><select name="facility_type" required><option value="">Choose a type</option>{% for facility_type in facility_types %}<option value="{{ facility_type }}" {{ 'selected' if request.form.get('facility_type', facility.facility_type if facility else '') == facility_type else '' }}>{{ facility_type }}</option>{% endfor %}</select></label>
+  <label>Address<input name="address" maxlength="300" value="{{ request.form.get('address', facility.address if facility else '') }}"></label>
+  <label class="form-full">Description<textarea name="description" maxlength="1500" rows="4">{{ request.form.get('description', facility.description if facility else '') }}</textarea></label>
+  <label>Latitude (verified only)<input name="latitude" type="number" min="-90" max="90" step="any" value="{{ request.form.get('latitude', facility.latitude if facility and facility.latitude is not none else '') }}" placeholder="Leave blank if unknown"></label>
+  <label>Longitude (verified only)<input name="longitude" type="number" min="-180" max="180" step="any" value="{{ request.form.get('longitude', facility.longitude if facility and facility.longitude is not none else '') }}" placeholder="Leave blank if unknown"></label>
+  <label class="form-full checkbox-label"><input type="checkbox" name="coordinates_verified" value="yes" {{ 'checked' if request.form.get('coordinates_verified') == 'yes' or facility and facility.coordinates_verified else '' }}> I have verified these coordinates from a reliable source.</label>
+</div><div class="form-actions"><button class="button button-primary" type="submit">Save facility</button><a class="button button-outline" href="{{ url_for('gis_map') }}">Cancel</a></div></form>
+{% if facility %}<form class="delete-form" method="post" action="{{ url_for('delete_facility', facility_id=facility.id) }}" data-confirm="Delete this facility record?"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="button button-danger" type="submit">Delete facility</button></form>{% endif %}
+</section>
+{% endblock %}

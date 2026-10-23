@@ -1,11 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Villages · Smart Village{% endblock %}
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">DIRECTORY</p><h1>Village information</h1><p class="muted">Browse village profiles and their development indicators.</p></div>{% if session.get('user_role') == 'admin' %}<a class="button button-primary" href="{{ url_for('add_village') }}">＋ Add village</a>{% endif %}</div>
+<div class="page-heading"><div><p class="eyebrow">DIRECTORY</p><h1>Village information</h1><p class="muted">Browse village profiles and their development indicators.</p></div>{% if current_user and current_user.role == 'system_admin' %}<a class="button button-primary" href="{{ url_for('add_village') }}">＋ Add village</a>{% endif %}</div>
 <div class="notice"><strong>Fictional sample records.</strong> This prototype does not connect to government databases.</div>
-<section class="panel">
+{% set village_images = [
+  ('https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=900&q=78', 'Illustrative green agricultural fields beside a rural community'),
+  ('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=78', 'Illustrative rural road connecting local communities'),
+  ('https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=900&q=78', 'Illustrative school classroom supporting village education'),
+  ('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=900&q=78', 'Illustrative healthcare professionals providing community care'),
+  ('https://images.unsplash.com/photo-1548839140-29a749e1cf4d?auto=format&fit=crop&w=900&q=78', 'Clear drinking water representing access to safe water for rural households')
+] %}
+{% if villages %}
+<section class="village-card-grid" aria-label="Village profiles">
+  {% for village in villages %}
+  {% set village_image = village_images[loop.index0 % village_images|length] %}
+  <a class="village-card reveal" href="{{ url_for('village_details', village_id=village.id) }}">
+    <div class="village-card-image"><img src="{{ village_image[0] }}" data-fallback="{{ url_for('static', filename='images/village-fallback.svg') }}" alt="{{ village_image[1] }}" loading="lazy" width="900" height="560"><span class="village-card-tag">{{ village.district }}</span></div>
+    <div class="village-card-body"><span class="eyebrow">VILLAGE PROFILE</span><h2>{{ village.name }}</h2><p>{{ "{:,}".format(village.population) }} residents · {{ village.schools }} schools · {{ village.healthcare_centers }} health centers</p><span class="village-card-link">View village details <span aria-hidden="true">→</span></span></div>
+  </a>
+  {% endfor %}
+</section>
+{% else %}
+<section class="panel empty-panel"><span class="empty-icon" aria-hidden="true">⌂</span><h2>No villages found</h2><p class="muted">Try another name or district, or clear your search to browse all village profiles.</p></section>
+{% endif %}
+<section class="panel reveal">
   <form class="filter-bar" method="get" action="{{ url_for('villages') }}"><label class="search-control"><span>Search villages</span><input type="search" name="q" value="{{ search }}" placeholder="Village name or district"></label><button class="button button-primary" type="submit">Search</button>{% if search %}<a class="button button-outline" href="{{ url_for('villages') }}">Clear</a>{% endif %}</form>
   <div class="table-scroll"><table><thead><tr><th>Village</th><th>District</th><th>Population</th><th>Schools</th><th>Healthcare</th><th>Road status</th><th>Water available</th><th></th></tr></thead>
-  <tbody>{% for village in villages %}<tr><td class="cell-strong"><a class="table-link" href="{{ url_for('village_details', village_id=village.id) }}">{{ village.name }}</a></td><td>{{ village.district }}</td><td>{{ "{:,}".format(village.population) }}</td><td>{{ village.schools }}</td><td>{{ village.healthcare_centers }}</td><td>{{ village.road_status }}</td><td><div class="meter"><span style="width: {{ village.water_availability }}%"></span></div><small>{{ village.water_availability }}%</small></td><td class="actions"><a class="text-link" href="{{ url_for('village_details', village_id=village.id) }}">Details</a>{% if session.get('user_role') == 'admin' %}<a class="text-link" href="{{ url_for('edit_village', village_id=village.id) }}">Edit</a>{% endif %}</td></tr>{% else %}<tr><td class="empty-state" colspan="8">No villages matched your search.</td></tr>{% endfor %}</tbody></table></div>
+  <tbody>{% for village in villages %}<tr><td class="cell-strong"><a class="table-link" href="{{ url_for('village_details', village_id=village.id) }}">{{ village.name }}</a></td><td>{{ village.district }}</td><td>{{ "{:,}".format(village.population) }}</td><td>{{ village.schools }}</td><td>{{ village.healthcare_centers }}</td><td>{{ village.road_status }}</td><td><div class="meter"><span style="width: {{ village.water_availability }}%"></span></div><small>{{ village.water_availability }}%</small></td><td class="actions"><a class="text-link" href="{{ url_for('village_details', village_id=village.id) }}">Details</a>{% if current_user and (current_user.role == 'system_admin' or current_user.role == 'village_officer' and current_user.assigned_village_id == village.id) %}<a class="text-link" href="{{ url_for('edit_village', village_id=village.id) }}">Edit</a>{% endif %}</td></tr>{% else %}<tr><td class="empty-state" colspan="8">No villages matched your search.</td></tr>{% endfor %}</tbody></table></div>
 </section>
 {% endblock %}

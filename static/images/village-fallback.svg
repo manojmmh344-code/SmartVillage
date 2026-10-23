@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-label="Illustrated green rural landscape">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ccebd6"/>
+      <stop offset="1" stop-color="#f4f5d8"/>
+    </linearGradient>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#84bd6b"/>
+      <stop offset="1" stop-color="#397b49"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#sky)"/>
+  <circle cx="940" cy="150" r="70" fill="#f5d77e"/>
+  <path d="M0 410 270 235l235 175 210-205 280 210 205-140v425H0z" fill="#9ac47e"/>
+  <path d="M0 500q230-140 450 5t430-10 320 0v205H0z" fill="url(#field)"/>
+  <path d="M420 700q40-150 180-220t240-100q-110 100-125 320z" fill="#d7c995"/>
+  <path d="M120 475v-95l60-50 60 50v95zM305 455v-75l48-40 48 40v75z" fill="#f0e5c6"/>
+  <path d="M105 382h150M293 362h120" stroke="#aa7351" stroke-width="14"/>
+  <path d="M145 475v-55h35v55M328 455v-45h28v45" fill="#7eab82"/>
+  <path d="M70 515v-75m-22 0q22-60 44 0M1090 455v-90m-28 0q28-72 56 0" stroke="#376d47" stroke-width="13" fill="none" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Complaint management · Smart Village{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/modules.css') }}">{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">ADMINISTRATION</p><h1>Complaint management</h1><p class="muted">Search reports, review status history, assign officers, and record follow-up.</p></div><a class="button button-outline" href="{{ url_for('manage_complaints') }}">Public complaint form</a></div>
+<section class="stat-grid complaint-stats" aria-label="Complaint summary">
+  <article class="stat-card"><span class="stat-label">Total complaints</span><strong>{{ counts.total }}</strong></article>
+  <article class="stat-card"><span class="stat-label">Pending</span><strong>{{ counts.pending }}</strong></article>
+  <article class="stat-card"><span class="stat-label">In progress</span><strong>{{ counts.in_progress }}</strong></article>
+  <article class="stat-card"><span class="stat-label">Resolved</span><strong>{{ counts.resolved }}</strong></article>
+</section>
+<section class="content-grid complaint-charts">
+  <article class="panel"><div class="panel-heading"><div><h2>Complaints by category</h2><p>All submitted reports</p></div></div><div class="chart-wrap"><canvas id="complaint-category-chart" aria-label="Bar chart of complaint categories"></canvas></div><script id="complaint-category-labels" type="application/json">{{ categories|tojson }}</script><script id="complaint-category-values" type="application/json">{{ category_totals|tojson }}</script></article>
+  <article class="panel"><div class="panel-heading"><div><h2>Status distribution</h2><p>Current complaint statuses</p></div></div><div class="chart-wrap"><canvas id="complaint-status-chart" aria-label="Doughnut chart of complaint statuses"></canvas></div><script id="complaint-status-labels" type="application/json">{{ statuses|tojson }}</script><script id="complaint-status-values" type="application/json">{{ status_totals|tojson }}</script></article>
+</section>
+<section class="panel table-panel">
+  <div class="panel-heading panel-heading-wrap"><div><h2>All complaints</h2><p>Citizen contact information is available only on authorized detail pages.</p></div></div>
+  <form class="filter-bar complaint-filter" method="get">
+    <label class="search-control"><span>Complaint ID or title</span><input type="search" name="q" value="{{ filters.q }}" maxlength="160" placeholder="Search complaints"></label>
+    <label class="select-control"><span>Village</span><select name="village"><option value="">All villages</option>{% for village in villages %}<option value="{{ village.id }}" {{ 'selected' if filters.village == village.id|string else '' }}>{{ village.name }}</option>{% endfor %}</select></label>
+    <label class="select-control"><span>Category</span><select name="category"><option value="">All categories</option>{% for category in categories %}<option value="{{ category }}" {{ 'selected' if filters.category == category else '' }}>{{ category }}</option>{% endfor %}</select></label>
+    <label class="select-control"><span>Status</span><select name="status"><option value="">All statuses</option>{% for status in statuses %}<option value="{{ status }}" {{ 'selected' if filters.status == status else '' }}>{{ status }}</option>{% endfor %}</select></label>
+    <label class="date-control"><span>From</span><input type="date" name="date_from" value="{{ filters.date_from }}"></label>
+    <label class="date-control"><span>To</span><input type="date" name="date_to" value="{{ filters.date_to }}"></label>
+    <button class="button button-primary" type="submit">Filter</button><a class="button button-outline" href="{{ url_for('admin_complaints') }}">Clear</a>
+  </form>
+  <div class="table-scroll"><table><thead><tr><th>Complaint ID</th><th>Title</th><th>Village</th><th>Category</th><th>Submitted</th><th>Status</th><th>Assigned officer</th><th></th></tr></thead><tbody>
+  {% for complaint in complaints %}<tr><td class="cell-strong">{{ complaint.complaint_id }}</td><td>{{ complaint.title }}</td><td>{{ complaint.village_name }}</td><td>{{ complaint.category }}</td><td>{{ complaint.created_at }}</td><td><span class="status status-{{ complaint.status|lower|replace(' ', '-') }}">{{ complaint.status }}</span></td><td>{{ complaint.assigned_officer or 'Unassigned' }}</td><td><a class="text-link" href="{{ url_for('admin_complaint_details', complaint_row_id=complaint.id) }}">Review</a></td></tr>{% else %}<tr><td colspan="8" class="empty-state">No complaints match these filters.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}
+{% block page_scripts %}<script defer src="{{ url_for('static', filename='js/complaints.js') }}"></script>{% endblock %}

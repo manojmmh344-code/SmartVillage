@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Village officers · Smart Village{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">SYSTEM ADMINISTRATION</p><h1>Village Officers</h1><p class="muted">Create officer accounts and approve their village assignment before access is enabled.</p></div><a class="button button-primary" href="{{ url_for('admin_create_officer') }}">＋ Create officer</a></div>
+<section class="notice"><strong>Approval required.</strong> New officer accounts are created inactive and unapproved. Activate only after confirming the officer and village assignment.</section>
+<section class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Officer</th><th>Official email</th><th>Assigned village</th><th>Department</th><th>Approved</th><th>Active</th><th>Import permission</th><th></th></tr></thead><tbody>{% for officer in officers %}<tr><td>{{ officer.name }}</td><td>{{ officer.email }}</td><td>{{ officer.village_name or 'Unassigned' }}</td><td>{{ officer.department or '—' }}</td><td>{{ 'Yes' if officer.is_approved else 'No' }}</td><td>{{ 'Yes' if officer.is_active else 'No' }}</td><td>{{ 'Yes' if officer.can_import else 'No' }}</td><td><a class="text-link" href="{{ url_for('admin_edit_officer', officer_id=officer.id) }}">Manage</a></td></tr>{% else %}<tr><td colspan="8" class="empty-state">No officer accounts have been created.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

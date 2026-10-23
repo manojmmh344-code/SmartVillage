@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 733" role="img" aria-label="Illustration of students learning together">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dff4fa"/>
+      <stop offset="1" stop-color="#e9e4ff"/>
+    </linearGradient>
+    <linearGradient id="book" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#75c4ee"/>
+      <stop offset="1" stop-color="#5580d8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1100" height="733" fill="url(#bg)"/>
+  <circle cx="900" cy="120" r="72" fill="#fff" opacity=".55"/>
+  <path d="M0 540q280-110 550-5t550-30v228H0z" fill="#d6ead8"/>
+  <rect x="135" y="155" width="830" height="382" rx="28" fill="#fff" opacity=".74"/>
+  <rect x="215" y="208" width="670" height="242" rx="18" fill="#c6e6ee"/>
+  <path d="M250 400q140-210 295-10 130-155 300 10v32H250z" fill="#86c2a3"/>
+  <rect x="295" y="465" width="510" height="22" rx="11" fill="#c08e65"/>
+  <path d="M340 485v96m425-96v96" stroke="#8c624a" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="410" cy="342" r="53" fill="#a85f48"/>
+  <path d="M348 435q8-95 62-95t65 95" fill="#f3b344"/>
+  <circle cx="690" cy="342" r="53" fill="#6e4942"/>
+  <path d="M625 435q8-95 65-95t65 95" fill="#6a78cf"/>
+  <path d="M475 453l36-72 96 48-36 72z" fill="#fff" stroke="#567bb5" stroke-width="8"/>
+  <path d="M512 391l54 27m-70-1 54 27" stroke="#9db4d8" stroke-width="5"/>
+  <rect x="578" y="402" width="81" height="53" rx="5" fill="#384f6d"/>
+  <rect x="585" y="408" width="67" height="39" rx="3" fill="#b7e2f1"/>
+  <path d="M566 458h105l-12 10h-82z" fill="#60748e"/>
+  <path d="M181 240h35m-18-18v36m690-8h38m-19-19v38" stroke="#f0b34f" stroke-width="8" stroke-linecap="round"/>
+</svg>

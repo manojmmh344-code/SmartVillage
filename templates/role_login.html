@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · Smart Village{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block content %}
+<section class="auth-form-layout">
+  <div class="auth-form-intro"><p class="eyebrow">SECURE ACCOUNT ACCESS</p><h1>{{ title }}</h1><p class="muted">{{ description }}</p><a class="text-link" href="{{ url_for('auth_landing') }}">← Choose a different account type</a></div>
+  <form class="panel auth-form-card" method="post">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <h2>Sign in</h2>
+    <label>{% if role == 'village_officer' %}Official email or assigned username{% else %}Email address{% endif %}<input name="email" type="{% if role == 'village_officer' %}text{% else %}email{% endif %}" autocomplete="username" maxlength="254" required autofocus value="{{ request.form.get('email', '') }}"></label>
+    <label>Password<input type="password" name="password" autocomplete="current-password" maxlength="256" required></label>
+    <button class="button button-primary button-wide" type="submit">Sign in</button>
+    {% if role == 'citizen' %}<p class="small-note">New here? <a class="text-link" href="{{ url_for('citizen_register') }}">Create a citizen account</a></p>{% endif %}
+    {% if role == 'village_officer' %}<p class="small-note">If your account is inactive or not yet approved, contact your System Administrator. Password recovery is not available without a verified recovery process.</p>{% endif %}
+  </form>
+</section>
+{% endblock %}

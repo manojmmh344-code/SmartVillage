@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Village projects · Smart Village{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">VILLAGE OFFICER</p><h1>Assigned village projects</h1><p class="muted">Project changes are restricted to your assigned village.</p></div><a class="button button-primary" href="{{ url_for('officer_add_project') }}">＋ Add project</a></div>
+<section class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Project</th><th>Department</th><th>Budget</th><th>Start</th><th>Expected completion</th><th>Status</th><th></th></tr></thead><tbody>{% for project in projects %}<tr><td>{{ project.name }}</td><td>{{ project.department }}</td><td>₹{{ "{:,.0f}".format(project.budget) }}</td><td>{{ project.start_date }}</td><td>{{ project.expected_completion_date }}</td><td>{{ project.status }}</td><td><a class="text-link" href="{{ url_for('officer_edit_project', project_id=project.id) }}">Edit</a></td></tr>{% else %}<tr><td colspan="7" class="empty-state">No projects are linked to your assigned village yet.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

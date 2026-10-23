@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Village complaints · Smart Village{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">VILLAGE OFFICER</p><h1>Assigned village complaints</h1><p class="muted">Citizen details are restricted to officers assigned to the complaint's village.</p></div></div>
+<section class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Complaint ID</th><th>Title</th><th>Category</th><th>Status</th><th>Submitted</th><th>Officer</th><th></th></tr></thead><tbody>{% for complaint in complaints %}<tr><td>{{ complaint.complaint_id }}</td><td>{{ complaint.title }}</td><td>{{ complaint.category }}</td><td>{{ complaint.status }}</td><td>{{ complaint.created_at }}</td><td>{{ complaint.citizen_name }}</td><td><a class="text-link" href="{{ url_for('officer_complaint_details', complaint_row_id=complaint.id) }}">Review</a></td></tr>{% else %}<tr><td colspan="7" class="empty-state">No complaints are linked to your assigned village.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ service.title }} · E-Education{% endblock %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/education.css') }}">
+{% endblock %}
+{% block content %}
+<div class="education-page education-detail-page">
+  <nav class="education-breadcrumb" aria-label="Breadcrumb"><a href="{{ url_for('education') }}">E-Education</a><span aria-hidden="true">/</span><span>{{ service.title }}</span></nav>
+  <header class="education-detail-hero accent-{{ service.color }}">
+    <span class="education-card-icon" aria-hidden="true">{{ service.icon }}</span>
+    <span class="education-eyebrow">{{ service.category }}</span>
+    <h1>{{ service.title }}</h1>
+    <p>{{ service.intro }}</p>
+  </header>
+  <section class="education-source-section">
+    <div class="education-section-heading">
+      <span class="education-eyebrow">OFFICIAL AND PROVIDER RESOURCES</span>
+      <h2>Explore trusted websites</h2>
+      <p>These external organizations manage their own services. Review the official page for current details.</p>
+    </div>
+    <div class="education-source-list">
+      {% for name, description, href in service.sources %}
+      <article class="education-source-card">
+        <div><h3>{{ name }}</h3><p>{{ description }}</p></div>
+        <a class="button education-source-button" href="{{ href }}" target="_blank" rel="noopener noreferrer">Visit official website <span aria-hidden="true">↗</span></a>
+      </article>
+      {% endfor %}
+    </div>
+    {% if service.slug == 'scholarships' %}
+    <aside class="education-info-note"><strong>Check before applying</strong><p>Deadlines and eligibility are not copied onto this dashboard. Confirm the current scheme notice, required documents, and application dates on the official portal.</p></aside>
+    {% elif service.slug == 'exams' %}
+    <aside class="education-info-note"><strong>Use the right examination authority</strong><p>Exam notices and results are published by individual boards and authorities. Confirm your exam and year on the official website before relying on a schedule or result.</p></aside>
+    {% else %}
+    <aside class="education-info-note"><strong>Provider information</strong><p>Course offerings, learning materials, access requirements, and availability are set by each linked organization and may change.</p></aside>
+    {% endif %}
+  </section>
+  <div class="education-detail-actions"><a class="button education-source-button" href="{{ url_for('education') }}">← Back to education services</a><a class="education-text-link" href="{{ url_for('index') }}">Return to dashboard</a></div>
+</div>
+{% endblock %}

@@ -1,3 +1,3 @@
 {% extends "base.html" %}
 {% block title %}{{ code }} · Smart Village{% endblock %}
-{% block content %}<section class="panel error-panel"><span class="error-code">{{ code }}</span><h1>Page not available</h1><p class="muted">{{ message }}</p><a class="button button-primary" href="{{ url_for('index') }}">Return to dashboard</a></section>{% endblock %}
+{% block content %}<section class="panel error-panel"><span class="error-code">{{ code }}</span><h1>{{ 'Access denied' if code == 403 else 'Page not available' }}</h1><p class="muted">{{ message }}</p><a class="button button-primary" href="{{ url_for('index') }}">Return to dashboard</a></section>{% endblock %}

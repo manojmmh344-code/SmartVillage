@@ -1,17 +1,50 @@
 {% extends "base.html" %}
-{% block title %}Reports · Smart Village{% endblock %}
+{% block title %}Village report · Smart Village{% endblock %}
 {% block content %}
-<div class="page-heading no-print"><div><p class="eyebrow">PRINTABLE SUMMARY</p><h1>{% if current_user and current_user.role == 'village_officer' %}{{ villages[0].name }} development report{% else %}Village development report{% endif %}</h1><p class="muted">{% if current_user and current_user.role == 'village_officer' %}A report using records for your assigned village only.{% else %}A compact summary of the information currently stored in this prototype.{% endif %}</p></div><button class="button button-primary" type="button" data-print>Print / Save as PDF</button></div>
-<div class="report-title print-only"><h1>{% if current_user and current_user.role == 'village_officer' %}{{ villages[0].name }} development summary{% else %}Village development summary{% endif %}</h1><p>Smart Village Informatics and Development Dashboard · Existing database records and fictional sample data</p></div>
-<div class="notice no-print"><strong>Report scope.</strong> {% if current_user and current_user.role == 'village_officer' %}Only {{ villages[0].name }} records are included.{% else %}All figures are fictional and are not official government information.{% endif %}</div>
+<div class="page-heading no-print">
+  <div><p class="eyebrow">OFFICER REPORT</p><h1>{{ villages[0].name }} development report</h1><p class="muted">A report using records for your assigned village only.</p></div>
+  <button class="button button-primary" type="button" data-print>Print / Save as PDF</button>
+</div>
+<div class="report-title print-only"><h1>{{ villages[0].name }} development report</h1><p>Generated {{ generated_at }} · Smart Village Informatics and Development Dashboard</p></div>
+<section class="notice no-print"><strong>Report scope.</strong> Only {{ villages[0].name }} records are included. This demonstration uses the existing database and fictional sample data.</section>
+<form class="panel filter-bar no-print" method="get" action="{{ url_for('reports') }}">
+  <label class="search-control">From date<input type="date" name="date_from" value="{{ date_from }}"></label>
+  <label class="search-control">To date<input type="date" name="date_to" value="{{ date_to }}"></label>
+  <label class="select-control">Project status<select name="project_status"><option value="">All statuses</option>{% for status in ('Planned', 'In Progress', 'Completed') %}<option value="{{ status }}" {% if project_status_filter == status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></label>
+  <button class="button button-primary" type="submit">Apply filters</button>
+  <a class="button button-outline" href="{{ url_for('reports') }}">Clear</a>
+</form>
+<p class="small-note">Generated {{ generated_at }}. Date filters apply to project start dates and complaint submission dates.</p>
 <section class="report-summary">
-  <article class="stat-card"><span class="stat-label">Villages included</span><strong>{{ villages|length }}</strong></article>
-  <article class="stat-card"><span class="stat-label">Projects recorded</span><strong>{{ project_total }}</strong></article>
-  <article class="stat-card"><span class="stat-label">Complaints recorded</span><strong>{{ complaint_total }}</strong></article>
-  <article class="stat-card"><span class="stat-label">Villages highlighted</span><strong>{{ attention_villages|length }}</strong></article>
+  <article class="stat-card"><span class="stat-label">Village</span><strong>{{ villages[0].name }}</strong></article>
+  <article class="stat-card"><span class="stat-label">Projects in report</span><strong>{{ project_total }}</strong></article>
+  <article class="stat-card"><span class="stat-label">Complaints in report</span><strong>{{ complaint_total }}</strong></article>
+  <article class="stat-card"><span class="stat-label">Facilities recorded</span><strong>{{ facilities_by_type|sum(attribute='total') }}</strong></article>
 </section>
-<section class="panel"><div class="panel-heading"><div><h2>Village development summary</h2><p>Population and key infrastructure indicators</p></div></div><div class="table-scroll"><table><thead><tr><th>Village</th><th>District</th><th>Population</th><th>Schools</th><th>Healthcare</th><th>Road status</th><th>Water</th></tr></thead><tbody>{% for village in villages %}<tr><td class="cell-strong">{{ village.name }}</td><td>{{ village.district }}</td><td>{{ "{:,}".format(village.population) }}</td><td>{{ village.schools }}</td><td>{{ village.healthcare_centers }}</td><td>{{ village.road_status }}</td><td>{{ village.water_availability }}%</td></tr>{% else %}<tr><td colspan="7" class="empty-state">No village records are available for this report.</td></tr>{% endfor %}</tbody></table></div></section>
-<section class="panel"><div class="panel-heading"><div><h2>Complaints by status</h2><p>Counts use the report's current village scope.</p></div></div>{% if complaint_statuses %}<ul class="plain-list">{% for item in complaint_statuses %}<li><strong>{{ item.status }}:</strong> {{ item.total }}</li>{% endfor %}</ul>{% else %}<p class="empty-state">No complaint records are available for this report.</p>{% endif %}</section>
-<section class="panel attention-panel"><div class="panel-heading"><div><h2>Indicators that may need attention</h2><p>Flagged when water is below 70% or road status needs improvement.</p></div></div>{% if attention_villages %}<ul class="attention-list">{% for village in attention_villages %}<li><span class="attention-dot"></span><div><strong>{{ village.name }}</strong><span>{{ village.district }} · Water availability {{ village.water_availability }}% · Road status: {{ village.road_status }}</span></div><a class="text-link" href="{{ url_for('village_details', village_id=village.id) }}">View</a></li>{% endfor %}</ul>{% else %}<p>No villages currently match these sample attention rules.</p>{% endif %}</section>
+<section class="panel">
+  <div class="panel-heading"><div><h2>Village statistics and service indicators</h2><p>Population and household figures include their status, year, and source; unavailable figures are not displayed.</p></div></div>
+  <div class="table-scroll"><table><thead><tr><th>Village</th><th>State</th><th>District</th><th>Taluk / block</th><th>Population</th><th>Population year / status / source</th><th>Households</th><th>Household year / status / source</th><th>Schools</th><th>Healthcare centers</th><th>Water availability</th><th>Road status</th></tr></thead>
+    <tbody>{% for village in villages %}<tr><td class="cell-strong">{{ village.name }}</td><td>{{ village.state or 'Not recorded' }}</td><td>{{ village.district }}</td><td>{{ village.taluk or 'Not recorded' }}</td><td>{% if village.population_status != 'Unavailable' %}{{ "{:,}".format(village.population) }}{% else %}Unavailable{% endif %}</td><td>{{ village.population_year if village.population_status != 'Unavailable' and village.population_year else 'Year not recorded' }} · {{ village.population_status }}{% if village.population_status == 'Sample' %} · DEMO DATA{% endif %} · {{ village.population_source if village.population_status != 'Unavailable' and village.population_source else 'Source not recorded' }}</td><td>{% if village.household_status != 'Unavailable' and village.household_count is not none %}{{ "{:,}".format(village.household_count) }}{% else %}Unavailable{% endif %}</td><td>{{ village.household_year if village.household_status != 'Unavailable' and village.household_year else 'Year not recorded' }} · {{ village.household_status }}{% if village.household_status == 'Sample' %} · DEMO DATA{% endif %} · {{ village.household_source if village.household_status != 'Unavailable' and village.household_source else 'Source not recorded' }}</td><td>{{ village.schools }}</td><td>{{ village.healthcare_centers }}</td><td>{{ village.water_availability }}%</td><td>{{ village.road_status }}</td></tr>{% else %}<tr><td colspan="12" class="empty-state">No village record is available for this report.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><div><h2>Development project progress</h2><p>Projects for {{ villages[0].name }}{% if project_status_filter %} · {{ project_status_filter }}{% endif %}</p></div></div>
+  <ul class="plain-list">{% for item in project_statuses %}<li><strong>{{ item.status }}:</strong> {{ item.total }}</li>{% endfor %}</ul>
+  <div class="table-scroll"><table><thead><tr><th>Project</th><th>Department</th><th>Start date</th><th>Expected completion</th><th>Status</th></tr></thead>
+    <tbody>{% for project in projects %}<tr><td class="cell-strong">{{ project.name }}</td><td>{{ project.department }}</td><td>{{ project.start_date }}</td><td>{{ project.expected_completion_date }}</td><td>{{ project.status }}</td></tr>{% else %}<tr><td colspan="5" class="empty-state">No projects match these report filters.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><div><h2>Village complaints</h2><p>Counts use the report's village and selected date range.</p></div></div>
+  <ul class="plain-list">{% for item in complaint_statuses %}<li><strong>{{ item.status }}:</strong> {{ item.total }}</li>{% endfor %}</ul>
+</section>
+<section class="panel">
+  <div class="panel-heading"><div><h2>Recorded village facilities</h2><p>Facility records linked to {{ villages[0].name }}</p></div></div>
+  <ul class="plain-list">{% for item in facilities_by_type %}<li><strong>{{ item.facility_type }}:</strong> {{ item.total }}</li>{% endfor %}</ul>
+</section>
+<section class="panel attention-panel">
+  <div class="panel-heading"><div><h2>Indicators that may need attention</h2><p>Example flags when water is below 70% or road status needs improvement.</p></div></div>
+  {% if attention_villages %}<ul class="attention-list">{% for village in attention_villages %}<li><span class="attention-dot"></span><div><strong>{{ village.name }}</strong><span>{{ village.district }} · Water availability {{ village.water_availability }}% · Road status: {{ village.road_status }}</span></div><a class="text-link" href="{{ url_for('village_details', village_id=village.id) }}">View</a></li>{% endfor %}</ul>{% else %}<p>No village indicators currently match these sample attention rules.</p>{% endif %}
+</section>
 <p class="small-note">The attention rules are simple examples, not official standards or recommendations.</p>
 {% endblock %}

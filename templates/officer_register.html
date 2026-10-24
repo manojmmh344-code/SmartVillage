@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Create Officer Account · Smart Village{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block content %}
+<section class="auth-form-layout registration-layout">
+  <div class="auth-form-intro">
+    <p class="eyebrow">VILLAGE OFFICER REGISTRATION</p>
+    <h1>Create Officer Account</h1>
+    <p class="muted">Officer accounts are created only after an authorized verification provider confirms your identity, face liveness, officer authorization, and village assignment.</p>
+    {% if not verification_configured %}
+    <div class="demo-status"><strong>DEMO MODE — Verification is unavailable.</strong><br>
+      No authorized ID, face/liveness, or officer-registry provider is configured. This page will not collect or store identity documents or selfies, and no account can be created in demo mode.</div>
+    {% else %}
+    <div class="notice"><strong>Verification required.</strong> Your ID document and captured selfie will be sent to the configured verification adapter for this registration only. They are not stored by this application.</div>
+    {% endif %}
+    <p><a class="text-link" href="{{ url_for('officer_login') }}">Already have an account? Village Officer Login</a></p>
+    <p><a class="text-link" href="{{ url_for('auth_landing') }}">← Back to role selection</a></p>
+  </div>
+  <div>
+    <ol class="registration-steps" aria-label="Registration progress">
+      <li><strong>STEP 1</strong>Officer Details</li>
+      <li><strong>STEP 2</strong>ID Verification</li>
+      <li><strong>STEP 3</strong>Face Verification</li>
+    </ol>
+    <form class="panel auth-form-card" method="post" enctype="multipart/form-data" data-password-confirm data-officer-registration>
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <h2>Step 1: Officer details</h2>
+      <div class="registration-fields">
+        <label>Full name<input name="name" minlength="2" maxlength="100" autocomplete="name" required value="{{ request.form.get('name', '') }}"></label>
+        <label>Official ID / employee identification<input name="officer_identifier" minlength="3" maxlength="80" autocomplete="off" required value="{{ request.form.get('officer_identifier', '') }}"><small>Must match your department's authoritative officer record.</small></label>
+        <label>Official mobile number<input name="mobile_number" type="tel" maxlength="30" autocomplete="tel" required value="{{ request.form.get('mobile_number', '') }}"></label>
+        <label>Official email<input name="email" type="email" maxlength="254" autocomplete="email" required value="{{ request.form.get('email', '') }}"></label>
+        <label>State<input name="state" minlength="2" maxlength="100" autocomplete="address-level1" required value="{{ request.form.get('state', '') }}"></label>
+        <label>Taluk<input name="taluk" minlength="2" maxlength="100" required value="{{ request.form.get('taluk', '') }}"></label>
+        <label>Requested village<select id="officer-village" name="assigned_village_id" required><option value="">Choose a village</option>{% for village in villages %}<option value="{{ village.id }}" data-district="{{ village.district }}" {{ 'selected' if request.form.get('assigned_village_id') == village.id|string else '' }}>{{ village.name }}</option>{% endfor %}</select><small>This is a request only. The provider's verified officer record determines the actual assignment.</small></label>
+        <label>District<input id="officer-district" type="text" readonly value=""></label>
+        <label>Password<input id="officer-password" name="password" type="password" minlength="12" maxlength="256" autocomplete="new-password" required><small>Use at least 12 characters.</small></label>
+        <label>Confirm password<input name="confirm_password" type="password" minlength="12" maxlength="256" autocomplete="new-password" required></label>
+      </div>
+      {% if verification_configured %}
+      <h2>Step 2: ID verification</h2>
+      <label>ID document type<select name="document_type" required><option value="">Choose document type</option>{% for document_type in document_types %}<option value="{{ document_type }}" {{ 'selected' if request.form.get('document_type') == document_type else '' }}>{{ document_type }}</option>{% endfor %}</select></label>
+      <label>Official ID document<input name="identity_document" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required><small>PDF, JPG, or PNG; maximum 5 MB. Uploading alone is not identity verification.</small></label>
+      <h2>Step 3: Face verification</h2>
+      <input type="hidden" name="face_capture" value="">
+      <div class="camera-preview" data-camera-capture>
+        <video data-camera-video autoplay muted playsinline hidden aria-label="Live camera preview"></video>
+        <canvas data-camera-canvas hidden aria-label="Captured selfie preview"></canvas>
+        <div class="camera-actions"><button class="button button-outline" type="button" data-camera-start>Enable camera</button><button class="button button-primary" type="button" data-camera-capture-button disabled>Capture selfie for verification</button></div>
+        <p class="camera-message" data-camera-message aria-live="polite">The configured provider must perform face matching and liveness detection.</p>
+      </div>
+      <label class="consent-row"><input type="checkbox" name="consent" value="yes" required><span>I consent to sending my identity document and selfie to the configured verification provider to verify my identity and officer authorization. The application will not retain these images.</span></label>
+      {% else %}
+      <h2>Step 2: ID verification</h2>
+      <p class="muted">Unavailable until an authorized ID verification and officer-registry provider is configured.</p>
+      <h2>Step 3: Face verification</h2>
+      <p class="muted">Unavailable until a face matching and liveness provider is configured.</p>
+      {% endif %}
+      <button class="button button-primary button-wide" type="submit" {% if not verification_configured %}disabled{% endif %}>
+        {% if verification_configured %}Verify and create officer account{% else %}Registration unavailable in demo mode{% endif %}
+      </button>
+      {% if not verification_configured %}<p class="small-note">No officer privileges are granted from an uploaded document, a camera capture, or a mock result.</p>{% endif %}
+    </form>
+  </div>
+</section>
+{% endblock %}
+{% block page_scripts %}<script defer src="{{ url_for('static', filename='js/auth.js') }}"></script>{% endblock %}

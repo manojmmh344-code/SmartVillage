@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-heading">
   <div><p class="eyebrow">OVERVIEW</p><h1>Development dashboard</h1><p class="muted">A quick overview of the fictional village records in this prototype.</p></div>
-  <a class="button button-primary" href="{{ url_for('reports') }}">View summary report</a>
+  {% if current_user and current_user.role == 'village_officer' %}<a class="button button-primary" href="{{ url_for('officer_reports') }}">View village report</a>{% endif %}
 </div>
 <section class="welcome-hero reveal">
   <div class="welcome-copy"><span class="hero-kicker">LOCAL DEVELOPMENT · CLEARER INSIGHTS</span><h2>Building stronger villages, one insight at a time.</h2><p>Explore village facilities, community projects, and development progress in one place.</p><a class="button button-light" href="{{ url_for('villages') }}">Explore village directory <span aria-hidden="true">→</span></a></div>

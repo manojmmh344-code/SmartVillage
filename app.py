@@ -1,3 +1,5 @@
+import base64
+import importlib
 import os
 import secrets
 import sqlite3
@@ -28,6 +30,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE = os.path.join(BASE_DIR, "database.db")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "complaints")
+OFFICER_DOCUMENT_FOLDER = os.path.join(BASE_DIR, "uploads", "officer-verifications")
 COMPLAINT_CATEGORIES = (
     "Drinking Water",
     "Roads and Transportation",
@@ -48,17 +51,28 @@ FACILITY_TYPES = (
     "Government Service Center",
 )
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_SELFIE_BYTES = 1 * 1024 * 1024
+OFFICER_DOCUMENT_TYPES = ("Government ID card", "Employee ID card", "Other official document")
+
+
+class OfficerVerificationError(Exception):
+    """A verification adapter error safe to show to the applicant."""
+
 
 app = Flask(__name__)
 app.config.update(
     SECRET_KEY=os.environ.get("SMART_VILLAGE_SECRET") or secrets.token_hex(32),
     DATABASE=DATABASE,
-    MAX_CONTENT_LENGTH=6 * 1024 * 1024,
+    MAX_CONTENT_LENGTH=7 * 1024 * 1024,
     COMPLAINT_UPLOAD_FOLDER=UPLOAD_FOLDER,
+    OFFICER_DOCUMENT_FOLDER=OFFICER_DOCUMENT_FOLDER,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("SMART_VILLAGE_COOKIE_SECURE") == "1",
     PERMANENT_SESSION_LIFETIME=60 * 60 * 8,
+    OFFICER_VERIFICATION_PROVIDER=os.environ.get(
+        "SMART_VILLAGE_OFFICER_VERIFICATION_PROVIDER", ""
+    ),
 )
 
 VILLAGE_SAMPLES = [
@@ -194,6 +208,18 @@ def init_db():
             name TEXT NOT NULL UNIQUE,
             district TEXT NOT NULL,
             population INTEGER NOT NULL CHECK (population >= 0),
+            state TEXT NOT NULL DEFAULT '',
+            taluk TEXT NOT NULL DEFAULT '',
+            population_year INTEGER,
+            population_source TEXT NOT NULL DEFAULT 'DEMO DATA - fictional sample',
+            population_status TEXT NOT NULL DEFAULT 'Sample'
+                CHECK (population_status IN ('Official', 'Sample', 'Unavailable')),
+            household_count INTEGER CHECK (household_count IS NULL OR household_count >= 0),
+            household_year INTEGER,
+            household_source TEXT,
+            household_status TEXT NOT NULL DEFAULT 'Unavailable'
+                CHECK (household_status IN ('Official', 'Sample', 'Unavailable')),
+            statistics_updated_at TEXT,
             schools INTEGER NOT NULL CHECK (schools >= 0),
             healthcare_centers INTEGER NOT NULL CHECK (healthcare_centers >= 0),
             road_status TEXT NOT NULL,
@@ -224,6 +250,7 @@ def init_db():
             name TEXT NOT NULL,
             email TEXT COLLATE NOCASE,
             mobile_number TEXT,
+            officer_identifier TEXT,
             assigned_village_id INTEGER,
             department TEXT,
             is_approved INTEGER NOT NULL DEFAULT 0 CHECK (is_approved IN (0, 1)),
@@ -297,6 +324,27 @@ def init_db():
             attempt_key TEXT NOT NULL,
             attempted_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS officer_registration_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            full_name TEXT NOT NULL,
+            email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            mobile_number TEXT NOT NULL,
+            officer_identifier TEXT NOT NULL,
+            state TEXT NOT NULL,
+            district TEXT NOT NULL,
+            taluk TEXT NOT NULL,
+            assigned_village_id INTEGER NOT NULL,
+            password_hash TEXT NOT NULL,
+            document_type TEXT NOT NULL CHECK (document_type IN (
+                'Government ID card', 'Employee ID card', 'Other official document'
+            )),
+            document_path TEXT NOT NULL,
+            face_verification_status TEXT NOT NULL DEFAULT 'demo_not_verified'
+                CHECK (face_verification_status = 'demo_not_verified'),
+            consent_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (assigned_village_id) REFERENCES villages (id) ON DELETE RESTRICT
+        );
         """
     )
     user_columns = {
@@ -317,6 +365,7 @@ def init_db():
                 name TEXT NOT NULL,
                 email TEXT COLLATE NOCASE,
                 mobile_number TEXT,
+                officer_identifier TEXT,
                 assigned_village_id INTEGER,
                 department TEXT,
                 is_approved INTEGER NOT NULL DEFAULT 0 CHECK (is_approved IN (0, 1)),
@@ -350,17 +399,25 @@ def init_db():
         db.execute("ALTER TABLE users_new RENAME TO users")
         db.commit()
         db.execute("PRAGMA foreign_keys = ON")
-    elif "session_version" not in user_columns:
-        db.execute(
-            "ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0"
-        )
+    else:
+        if "session_version" not in user_columns:
+            db.execute(
+                "ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0"
+            )
+        if "officer_identifier" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN officer_identifier TEXT")
     db.executescript(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS users_email_nocase_idx
             ON users (email COLLATE NOCASE) WHERE email IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS users_officer_identifier_nocase_idx
+            ON users (officer_identifier COLLATE NOCASE)
+            WHERE role = 'village_officer' AND officer_identifier IS NOT NULL;
         CREATE INDEX IF NOT EXISTS users_village_role_idx
             ON users (assigned_village_id, role, is_active);
         CREATE INDEX IF NOT EXISTS login_attempts_time_idx ON login_attempts (attempted_at);
+        CREATE INDEX IF NOT EXISTS officer_registration_created_idx
+            ON officer_registration_requests (created_at);
         """
     )
     db.execute(
@@ -395,6 +452,29 @@ def init_db():
     village_columns = {
         row["name"] for row in db.execute("PRAGMA table_info(villages)").fetchall()
     }
+    village_migrations = {
+        "state": "TEXT NOT NULL DEFAULT ''",
+        "taluk": "TEXT NOT NULL DEFAULT ''",
+        "population_year": "INTEGER",
+        "population_source": (
+            "TEXT NOT NULL DEFAULT 'DEMO DATA - fictional sample'"
+        ),
+        "population_status": (
+            "TEXT NOT NULL DEFAULT 'Sample' "
+            "CHECK (population_status IN ('Official', 'Sample', 'Unavailable'))"
+        ),
+        "household_count": "INTEGER CHECK (household_count IS NULL OR household_count >= 0)",
+        "household_year": "INTEGER",
+        "household_source": "TEXT",
+        "household_status": (
+            "TEXT NOT NULL DEFAULT 'Unavailable' "
+            "CHECK (household_status IN ('Official', 'Sample', 'Unavailable'))"
+        ),
+        "statistics_updated_at": "TEXT",
+    }
+    for column, definition in village_migrations.items():
+        if column not in village_columns:
+            db.execute(f"ALTER TABLE villages ADD COLUMN {column} {definition}")
     if "latitude" not in village_columns:
         db.execute(
             "ALTER TABLE villages ADD COLUMN latitude REAL "
@@ -643,9 +723,9 @@ def login_for_role(role, identifier, password):
     if role == "village_officer":
         user = get_db().execute(
             """SELECT * FROM users
-               WHERE email = ? COLLATE NOCASE
+               WHERE (email = ? COLLATE NOCASE OR username = ?)
                  AND role = ? AND is_active = 1 AND is_approved = 1""",
-            (identifier, role),
+            (identifier, identifier, role),
         ).fetchone()
     else:
         user = get_db().execute(
@@ -663,29 +743,114 @@ def login_for_role(role, identifier, password):
     return user, False
 
 
-def read_village_form():
+def read_village_form(village=None):
     name = request.form.get("name", "").strip()
     district = request.form.get("district", "").strip()
+    state = request.form.get("state", "").strip()
+    taluk = request.form.get("taluk", "").strip()
     road_status = request.form.get("road_status", "").strip()
     agriculture = request.form.get("agriculture", "").strip()
+    previous = dict(village) if village is not None else {}
+    population_status = request.form.get(
+        "population_status", previous.get("population_status", "Sample")
+    )
     try:
-        population = int(request.form.get("population", ""))
+        population_text = request.form.get("population", "").strip()
+        if population_text:
+            population = int(population_text)
+        elif population_status == "Unavailable":
+            population = previous.get("population", 0)
+        else:
+            raise ValueError
         schools = int(request.form.get("schools", ""))
         healthcare_centers = int(request.form.get("healthcare_centers", ""))
         water_availability = int(request.form.get("water_availability", ""))
     except ValueError:
         raise ValueError("Population, facilities, and water availability must be whole numbers.") from None
+    household_status = request.form.get(
+        "household_status", previous.get("household_status", "Unavailable")
+    )
+    population_source = request.form.get(
+        "population_source", previous.get("population_source", "")
+    ).strip()
+    household_source = request.form.get(
+        "household_source", previous.get("household_source") or ""
+    ).strip()
+    try:
+        population_year_text = request.form.get(
+            "population_year",
+            str(previous["population_year"]) if previous.get("population_year") else "",
+        ).strip()
+        household_year_text = request.form.get(
+            "household_year",
+            str(previous["household_year"]) if previous.get("household_year") else "",
+        ).strip()
+        household_count_text = request.form.get(
+            "household_count",
+            str(previous["household_count"])
+            if previous.get("household_count") is not None
+            else "",
+        ).strip()
+        population_year = int(population_year_text) if population_year_text else None
+        household_year = int(household_year_text) if household_year_text else None
+        household_count = int(household_count_text) if household_count_text else None
+    except ValueError:
+        raise ValueError("Population and household years and counts must be whole numbers.") from None
     if not all((name, district, road_status, agriculture)):
         raise ValueError("Please complete every village field.")
     if min(population, schools, healthcare_centers) < 0:
         raise ValueError("Population and facility counts cannot be negative.")
+    if household_count is not None and household_count < 0:
+        raise ValueError("Household count cannot be negative.")
+    current_year = date.today().year
+    if any(
+        year is not None and not 1800 <= year <= current_year
+        for year in (population_year, household_year)
+    ):
+        raise ValueError(f"Data years must be between 1800 and {current_year}.")
+    if population_status not in ("Official", "Sample", "Unavailable"):
+        raise ValueError("Choose a valid population data status.")
+    if household_status not in ("Official", "Sample", "Unavailable"):
+        raise ValueError("Choose a valid household data status.")
+    if population_status == "Official" and (not population_source or population_year is None):
+        raise ValueError("Official population data requires its source and data year.")
+    if population_status == "Unavailable":
+        population_source = ""
+        population_year = None
+    elif population_status == "Sample" and not population_source:
+        population_source = "DEMO DATA - officer-entered sample"
+    if household_status == "Unavailable":
+        household_count = None
+        household_source = ""
+        household_year = None
+    elif household_count is None:
+        household_status = "Unavailable"
+        household_source = ""
+        household_year = None
+    elif household_status == "Official" and (not household_source or household_year is None):
+        raise ValueError("Official household data requires its source and data year.")
+    elif household_status == "Sample" and not household_source:
+        household_source = "DEMO DATA - officer-entered sample"
     if road_status not in ("Good", "Fair", "Needs improvement"):
         raise ValueError("Choose a valid road status.")
     if not 0 <= water_availability <= 100:
         raise ValueError("Water availability must be from 0 to 100 percent.")
-    if len(name) > 100 or len(district) > 100 or len(agriculture) > 200:
+    if (
+        len(name) > 100
+        or len(district) > 100
+        or len(state) > 100
+        or len(taluk) > 100
+        or len(agriculture) > 200
+        or len(population_source) > 300
+        or len(household_source) > 300
+    ):
         raise ValueError("Please keep village text fields within the displayed length limits.")
-    return (name, district, population, schools, healthcare_centers, road_status, water_availability, agriculture)
+    return (
+        name, district, population, schools, healthcare_centers, road_status,
+        water_availability, agriculture, state, taluk, population_year,
+        population_source, population_status, household_count, household_year,
+        household_source or None, household_status,
+    )
 
 
 def read_project_form():
@@ -1007,6 +1172,16 @@ def officer_dashboard():
            FROM complaints WHERE village_id = ? ORDER BY created_at DESC LIMIT 8""",
         (village_id,),
     ).fetchall()
+    projects = db.execute(
+        """SELECT name, department, start_date, expected_completion_date, status
+           FROM projects WHERE village_id = ? ORDER BY start_date DESC LIMIT 8""",
+        (village_id,),
+    ).fetchall()
+    facilities = db.execute(
+        """SELECT facility_name, facility_type, address FROM facilities
+           WHERE village_id = ? ORDER BY facility_type, facility_name""",
+        (village_id,),
+    ).fetchall()
     project_counts = db.execute(
         "SELECT status, COUNT(*) AS total FROM projects WHERE village_id = ? GROUP BY status",
         (village_id,),
@@ -1019,6 +1194,8 @@ def officer_dashboard():
         "officer_dashboard.html",
         village=village,
         complaints=complaints,
+        projects=projects,
+        facilities=facilities,
         project_counts=project_counts,
         complaint_counts=complaint_counts,
     )
@@ -1182,9 +1359,15 @@ def add_village():
                 """INSERT INTO villages
                    (name, district, population, schools, healthcare_centers,
                     road_status, water_availability, agriculture,
-                    latitude, longitude, coordinates_verified)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (*values, *coordinates),
+                    state, taluk, population_year, population_source,
+                    population_status, household_count, household_year,
+                    household_source, household_status, latitude, longitude,
+                    coordinates_verified, statistics_updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    *values[:8], *values[8:], *coordinates,
+                    datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                ),
             )
             get_db().commit()
         except ValueError as error:
@@ -1194,7 +1377,12 @@ def add_village():
         else:
             flash("Village added successfully.", "success")
             return redirect(url_for("villages"))
-    return render_template("village_form.html", village=None, form_title="Add village")
+    return render_template(
+        "village_form.html",
+        village=None,
+        form_title="Add village",
+        current_year=date.today().year,
+    )
 
 
 @app.route("/admin/villages/<int:village_id>/edit", methods=["GET", "POST"])
@@ -1209,7 +1397,7 @@ def edit_village(village_id):
         abort(403)
     if request.method == "POST":
         try:
-            values = read_village_form()
+            values = read_village_form(village)
             coordinates = (
                 read_coordinates_form()
                 if user["role"] == "system_admin"
@@ -1222,9 +1410,16 @@ def edit_village(village_id):
             db.execute(
                 """UPDATE villages SET name=?, district=?, population=?, schools=?,
                    healthcare_centers=?, road_status=?, water_availability=?, agriculture=?,
-                   latitude=?, longitude=?, coordinates_verified=?
+                   state=?, taluk=?, population_year=?, population_source=?,
+                   population_status=?, household_count=?, household_year=?,
+                   household_source=?, household_status=?, latitude=?, longitude=?,
+                   coordinates_verified=?, statistics_updated_at=?
                    WHERE id=?""",
-                (*values, *coordinates, village_id),
+                (
+                    *values, *coordinates,
+                    datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    village_id,
+                ),
             )
             db.commit()
         except ValueError as error:
@@ -1234,7 +1429,12 @@ def edit_village(village_id):
         else:
             flash("Village updated successfully.", "success")
             return redirect(url_for("village_details", village_id=village_id))
-    return render_template("village_form.html", village=village, form_title="Edit village")
+    return render_template(
+        "village_form.html",
+        village=village,
+        form_title="Edit village",
+        current_year=date.today().year,
+    )
 
 
 @app.post("/admin/villages/<int:village_id>/delete")
@@ -1840,40 +2040,180 @@ def analytics():
 
 
 @app.route("/reports")
+@roles_required("village_officer")
 def reports():
-    db = get_db()
-    user = getattr(g, "current_user", None)
-    if user is not None and user["role"] == "village_officer":
-        village_id = assigned_village_id()
-        villages = db.execute(
-            "SELECT * FROM villages WHERE id = ? ORDER BY name", (village_id,)
-        ).fetchall()
-        project_total = db.execute(
-            "SELECT COUNT(*) FROM projects WHERE village_id = ?", (village_id,)
-        ).fetchone()[0]
-        complaint_statuses = db.execute(
-            """SELECT status, COUNT(*) AS total FROM complaints
-               WHERE village_id = ? GROUP BY status""",
-            (village_id,),
-        ).fetchall()
-    else:
-        villages = db.execute("SELECT * FROM villages ORDER BY name").fetchall()
-        project_total = db.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
-        complaint_statuses = db.execute(
-            "SELECT status, COUNT(*) AS total FROM complaints GROUP BY status"
-        ).fetchall()
-    complaint_total = sum(row["total"] for row in complaint_statuses)
-    attention_villages = [
-        village for village in villages
-        if village["water_availability"] < 70 or village["road_status"] == "Needs improvement"
-    ]
+    report = build_officer_report(assigned_village_id())
     return render_template(
         "reports.html",
-        villages=villages,
-        project_total=project_total,
-        complaint_total=complaint_total,
-        complaint_statuses=complaint_statuses,
-        attention_villages=attention_villages,
+        **report,
+    )
+
+
+def report_filters():
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    project_status = request.args.get("project_status", "").strip()
+    for label, value in (("start", date_from), ("end", date_to)):
+        if value:
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                abort(400, description=f"Choose a valid report {label} date.")
+    if date_from and date_to and date_from > date_to:
+        abort(400, description="The report start date cannot be after the end date.")
+    if project_status and project_status not in ("Planned", "In Progress", "Completed"):
+        abort(400, description="Choose a valid project status.")
+    return date_from, date_to, project_status
+
+
+def build_officer_report(village_id):
+    db = get_db()
+    village = db.execute(
+        "SELECT * FROM villages WHERE id = ?", (village_id,)
+    ).fetchone()
+    if village is None:
+        abort(403)
+
+    date_from, date_to, project_status = report_filters()
+    project_conditions = ["village_id = ?"]
+    project_parameters = [village_id]
+    complaint_conditions = ["village_id = ?"]
+    complaint_parameters = [village_id]
+    if date_from:
+        project_conditions.append("start_date >= ?")
+        project_parameters.append(date_from)
+        complaint_conditions.append("date(created_at) >= date(?)")
+        complaint_parameters.append(date_from)
+    if date_to:
+        project_conditions.append("start_date <= ?")
+        project_parameters.append(date_to)
+        complaint_conditions.append("date(created_at) <= date(?)")
+        complaint_parameters.append(date_to)
+    if project_status:
+        project_conditions.append("status = ?")
+        project_parameters.append(project_status)
+
+    projects = db.execute(
+        """SELECT name, department, budget, start_date, expected_completion_date, status
+           FROM projects WHERE """ + " AND ".join(project_conditions) +
+        " ORDER BY start_date DESC, name",
+        project_parameters,
+    ).fetchall()
+    project_statuses = [
+        {"status": status, "total": sum(1 for project in projects if project["status"] == status)}
+        for status in ("Planned", "In Progress", "Completed")
+    ]
+    complaint_rows = db.execute(
+        """SELECT status, COUNT(*) AS total FROM complaints
+           WHERE """ + " AND ".join(complaint_conditions) + " GROUP BY status",
+        complaint_parameters,
+    ).fetchall()
+    complaint_counts = {row["status"]: row["total"] for row in complaint_rows}
+    complaint_statuses = [
+        {"status": status, "total": complaint_counts.get(status, 0)}
+        for status in COMPLAINT_STATUSES
+    ]
+    facility_rows = db.execute(
+        """SELECT facility_type, COUNT(*) AS total FROM facilities
+           WHERE village_id = ? GROUP BY facility_type""",
+        (village_id,),
+    ).fetchall()
+    facility_counts = {row["facility_type"]: row["total"] for row in facility_rows}
+    facilities_by_type = [
+        {"facility_type": facility_type, "total": facility_counts.get(facility_type, 0)}
+        for facility_type in FACILITY_TYPES
+    ]
+    attention_villages = [
+        village
+        for village in (village,)
+        if village["water_availability"] < 70
+        or village["road_status"] == "Needs improvement"
+    ]
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return {
+        "villages": [village],
+        "project_total": len(projects),
+        "projects": projects,
+        "project_statuses": project_statuses,
+        "complaint_statuses": complaint_statuses,
+        "complaint_total": sum(item["total"] for item in complaint_statuses),
+        "facilities_by_type": facilities_by_type,
+        "attention_villages": attention_villages,
+        "generated_at": generated_at,
+        "date_from": date_from,
+        "date_to": date_to,
+        "project_status_filter": project_status,
+    }
+
+
+@app.get("/api/reports")
+@api_roles_required("village_officer")
+def api_officer_report():
+    report = build_officer_report(assigned_village_id())
+    village = report["villages"][0]
+    return jsonify(
+        {
+            "village": {
+                "id": village["id"],
+                "name": village["name"],
+                "state": village["state"],
+                "district": village["district"],
+                "taluk": village["taluk"],
+                "population": (
+                    village["population"]
+                    if village["population_status"] != "Unavailable"
+                    else None
+                ),
+                "population_year": (
+                    village["population_year"]
+                    if village["population_status"] != "Unavailable"
+                    else None
+                ),
+                "population_source": (
+                    village["population_source"]
+                    if village["population_status"] != "Unavailable"
+                    else None
+                ),
+                "population_status": village["population_status"],
+                "household_count": (
+                    village["household_count"]
+                    if village["household_status"] != "Unavailable"
+                    else None
+                ),
+                "household_year": (
+                    village["household_year"]
+                    if village["household_status"] != "Unavailable"
+                    else None
+                ),
+                "household_source": (
+                    village["household_source"]
+                    if village["household_status"] != "Unavailable"
+                    else None
+                ),
+                "household_status": village["household_status"],
+                "statistics_updated_at": village["statistics_updated_at"],
+                "schools": village["schools"],
+                "healthcare_centers": village["healthcare_centers"],
+                "road_status": village["road_status"],
+                "water_availability": village["water_availability"],
+            },
+            "generated_at": report["generated_at"],
+            "filters": {
+                "date_from": report["date_from"],
+                "date_to": report["date_to"],
+                "project_status": report["project_status_filter"],
+            },
+            "projects": {
+                "total": report["project_total"],
+                "by_status": report["project_statuses"],
+                "items": [dict(project) for project in report["projects"]],
+            },
+            "complaints": {
+                "total": report["complaint_total"],
+                "by_status": report["complaint_statuses"],
+            },
+            "facilities_by_type": report["facilities_by_type"],
+        }
     )
 
 
@@ -1950,6 +2290,185 @@ def register_citizen_response(payload, json_response=False):
     return redirect(url_for("citizen_login"))
 
 
+def read_officer_registration_form():
+    form = request.form
+    name = form.get("name", "").strip()
+    identifier = form.get("officer_identifier", "").strip()
+    state = form.get("state", "").strip()
+    taluk = form.get("taluk", "").strip()
+    mobile = form.get("mobile_number", "").strip()
+    document_type = form.get("document_type", "").strip()
+
+    try:
+        email = validate_email(form.get("email", ""))
+        password = validate_password(form.get("password", ""))
+    except ValueError as error:
+        raise ValueError(str(error)) from None
+    try:
+        requested_village_id = int(form.get("assigned_village_id", ""))
+    except ValueError:
+        raise ValueError("Select an existing village.") from None
+    if form.get("confirm_password", "") != password:
+        raise ValueError("Password and confirmation do not match.")
+    if not 2 <= len(name) <= 100:
+        raise ValueError("Full name must be between 2 and 100 characters.")
+    if not re.fullmatch(r"[0-9+() -]{7,30}", mobile) or sum(
+        character.isdigit() for character in mobile
+    ) < 7:
+        raise ValueError("Enter a valid official mobile number.")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 /._-]{2,79}", identifier):
+        raise ValueError("Enter valid officer ID or employee identification details.")
+    if not 2 <= len(state) <= 100 or not 2 <= len(taluk) <= 100:
+        raise ValueError("Enter a valid state and taluk.")
+    if document_type not in OFFICER_DOCUMENT_TYPES:
+        raise ValueError("Choose a valid ID document type.")
+    if form.get("consent") != "yes":
+        raise ValueError("Consent is required for identity and face verification.")
+
+    village = get_db().execute(
+        "SELECT id, district FROM villages WHERE id = ?", (requested_village_id,)
+    ).fetchone()
+    if village is None:
+        raise ValueError("Choose an existing village.")
+
+    document = request.files.get("identity_document")
+    if document is None or not document.filename:
+        raise ValueError("Upload an official ID document.")
+    extension = os.path.splitext(document.filename)[1].lower()
+    document_bytes = document.stream.read(MAX_UPLOAD_BYTES + 1)
+    signatures = {
+        ".pdf": document_bytes.startswith(b"%PDF-"),
+        ".jpg": document_bytes.startswith(b"\xff\xd8\xff"),
+        ".jpeg": document_bytes.startswith(b"\xff\xd8\xff"),
+        ".png": document_bytes.startswith(b"\x89PNG\r\n\x1a\n"),
+    }
+    if len(document_bytes) > MAX_UPLOAD_BYTES:
+        raise ValueError("The ID document must be 5 MB or smaller.")
+    if extension not in signatures or not signatures[extension]:
+        raise ValueError("Upload a valid PDF, JPG, JPEG, or PNG ID document.")
+    selfie_data = form.get("face_capture", "")
+    selfie_prefix = "data:image/jpeg;base64,"
+    if not selfie_data.startswith(selfie_prefix) or len(selfie_data) > 1_400_000:
+        raise ValueError("Capture a live selfie for face and liveness verification.")
+    try:
+        selfie_bytes = base64.b64decode(
+            selfie_data[len(selfie_prefix):], validate=True
+        )
+    except ValueError:
+        raise ValueError("The captured selfie is not a valid JPEG image.") from None
+    if (
+        not selfie_bytes.startswith(b"\xff\xd8\xff")
+        or len(selfie_bytes) > MAX_SELFIE_BYTES
+    ):
+        raise ValueError("The captured selfie must be a valid JPEG of 1 MB or less.")
+
+    return {
+        "name": name,
+        "email": email,
+        "mobile_number": mobile,
+        "officer_identifier": identifier,
+        "state": state,
+        "district": village["district"],
+        "taluk": taluk,
+        "requested_village_id": village["id"],
+        "password_hash": generate_password_hash(password),
+        "document_type": document_type,
+        "document_bytes": document_bytes,
+        "selfie_bytes": selfie_bytes,
+    }
+
+
+def get_officer_verification_provider():
+    setting = app.config.get("OFFICER_VERIFICATION_PROVIDER")
+    if callable(setting):
+        return setting
+    if not isinstance(setting, str) or not setting.strip():
+        return None
+    module_name, separator, function_name = setting.strip().partition(":")
+    if not separator or not module_name or not function_name:
+        app.logger.error(
+            "Officer verification provider must use the module:function format"
+        )
+        return None
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError:
+        app.logger.exception("Officer verification provider could not be imported")
+        return None
+    provider = getattr(module, function_name, None)
+    if not callable(provider):
+        app.logger.error("Configured officer verification function is unavailable")
+        return None
+    return provider
+
+
+def verify_officer_registration(values, provider):
+    details = {
+        key: values[key]
+        for key in (
+            "name", "email", "mobile_number", "officer_identifier",
+            "state", "taluk", "document_type", "requested_village_id",
+        )
+    }
+    result = provider(
+        details, values["document_bytes"], values["selfie_bytes"]
+    )
+    if not isinstance(result, dict):
+        raise OfficerVerificationError("The verification service returned an invalid result.")
+    if result.get("id_verified") is not True:
+        raise OfficerVerificationError("Official ID verification failed. No account was created.")
+    if result.get("face_verified") is not True or result.get("liveness_verified") is not True:
+        raise OfficerVerificationError(
+            "Face verification or liveness detection failed. No account was created."
+        )
+    if result.get("authorized") is not True:
+        raise OfficerVerificationError(
+            "This identity is not authorized as a Village Officer. No account was created."
+        )
+    verified_identifier = result.get("officer_identifier")
+    verified_email = result.get("email")
+    verified_name = result.get("name")
+    verified_mobile = result.get("mobile_number")
+    verified_state = result.get("state")
+    verified_taluk = result.get("taluk")
+    assigned_village_id = result.get("assigned_village_id")
+    if (
+        not isinstance(verified_identifier, str)
+        or verified_identifier.casefold() != values["officer_identifier"].casefold()
+        or not isinstance(verified_email, str)
+        or verified_email.strip().casefold() != values["email"].casefold()
+        or not isinstance(verified_name, str)
+        or verified_name.strip().casefold() != values["name"].casefold()
+        or not isinstance(verified_mobile, str)
+        or re.sub(r"\D", "", verified_mobile) != re.sub(r"\D", "", values["mobile_number"])
+        or not isinstance(verified_state, str)
+        or verified_state.strip().casefold() != values["state"].casefold()
+        or not isinstance(verified_taluk, str)
+        or verified_taluk.strip().casefold() != values["taluk"].casefold()
+        or isinstance(assigned_village_id, bool)
+        or not isinstance(assigned_village_id, int)
+        or assigned_village_id < 1
+    ):
+        raise OfficerVerificationError(
+            "The verified officer details did not match this registration. No account was created."
+        )
+    if not get_db().execute(
+        "SELECT 1 FROM villages WHERE id = ?", (assigned_village_id,)
+    ).fetchone():
+        raise OfficerVerificationError(
+            "The verified officer record has no valid village assignment. No account was created."
+        )
+    return {
+        "name": verified_name.strip(),
+        "email": verified_email.strip().lower(),
+        "mobile_number": verified_mobile.strip(),
+        "officer_identifier": verified_identifier.strip(),
+        "state": verified_state.strip(),
+        "taluk": verified_taluk.strip(),
+        "assigned_village_id": assigned_village_id,
+    }
+
+
 @app.get("/auth")
 def auth_landing():
     if getattr(g, "current_user", None) is not None:
@@ -1966,6 +2485,90 @@ def citizen_register():
     return render_template("citizen_register.html")
 
 
+@app.route("/register/officer", methods=["GET", "POST"])
+def officer_register():
+    db = get_db()
+    provider = get_officer_verification_provider()
+    if request.method == "POST":
+        email_input = request.form.get("email", "").strip()
+        key = login_attempt_key(email_input, "officer-register")
+        if login_is_limited(key):
+            flash("Too many registration attempts. Try again later.", "error")
+            return render_template(
+                "officer_register.html",
+                villages=db.execute("SELECT id, name, district FROM villages ORDER BY name").fetchall(),
+                document_types=OFFICER_DOCUMENT_TYPES,
+                verification_configured=provider is not None,
+            ), 429
+        record_login_failure(key)
+        if provider is None:
+            flash(
+                "DEMO MODE: ID, face/liveness, and officer-authorization services are not configured. "
+                "No officer account was created.",
+                "error",
+            )
+            return render_template(
+                "officer_register.html",
+                villages=db.execute(
+                    "SELECT id, name, district FROM villages ORDER BY name"
+                ).fetchall(),
+                document_types=OFFICER_DOCUMENT_TYPES,
+                verification_configured=False,
+            ), 503
+        try:
+            values = read_officer_registration_form()
+            if db.execute(
+                """SELECT 1 FROM users
+                   WHERE email = ? COLLATE NOCASE
+                      OR (role = 'village_officer'
+                          AND officer_identifier = ? COLLATE NOCASE)
+                   LIMIT 1""",
+                (values["email"], values["officer_identifier"]),
+            ).fetchone():
+                raise ValueError("An account already exists for this email or officer ID.")
+            verified = verify_officer_registration(values, provider)
+        except OfficerVerificationError as error:
+            flash(str(error), "error")
+        except ValueError as error:
+            flash(str(error), "error")
+        else:
+            now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            try:
+                db.execute(
+                    """INSERT INTO users
+                       (username, password_hash, role, name, email, mobile_number,
+                        officer_identifier, assigned_village_id, department,
+                        is_approved, is_active, created_at, updated_at)
+                       VALUES (?, ?, 'village_officer', ?, ?, ?, ?, ?,
+                               'Village Officer', 1, 1, ?, ?)""",
+                    (
+                        verified["email"], values["password_hash"],
+                        verified["name"], verified["email"], verified["mobile_number"],
+                        verified["officer_identifier"], verified["assigned_village_id"],
+                        now, now,
+                    ),
+                )
+                db.commit()
+            except sqlite3.IntegrityError:
+                db.rollback()
+                flash("An account already exists for this email or officer ID.", "error")
+            except sqlite3.Error:
+                db.rollback()
+                app.logger.exception("Verified officer account could not be created")
+                flash("The verified officer account could not be created. Please try again.", "error")
+            else:
+                db.execute("DELETE FROM login_attempts WHERE attempt_key = ?", (key,))
+                db.commit()
+                flash("Registration successful. You can now log in.", "success")
+                return redirect(url_for("officer_login"))
+    return render_template(
+        "officer_register.html",
+        villages=db.execute("SELECT id, name, district FROM villages ORDER BY name").fetchall(),
+        document_types=OFFICER_DOCUMENT_TYPES,
+        verification_configured=provider is not None,
+    )
+
+
 @app.route("/login/citizen", methods=["GET", "POST"])
 def citizen_login():
     return handle_role_login("citizen", "Citizen login", "Enter the email and password for your citizen account.")
@@ -1975,7 +2578,7 @@ def citizen_login():
 def officer_login():
     return handle_role_login(
         "village_officer", "Village Officer login",
-        "Sign in with the official email or assigned username issued by your administrator.",
+        "Sign in with your registered official email or assigned username.",
     )
 
 
@@ -2095,15 +2698,99 @@ def login():
     return redirect(url_for("admin_login", **request.args))
 
 
+@app.get("/admin/officer-registrations/<int:registration_id>/document")
+@admin_required
+def admin_officer_registration_document(registration_id):
+    registration = get_db().execute(
+        """SELECT document_path FROM officer_registration_requests WHERE id = ?""",
+        (registration_id,),
+    ).fetchone()
+    if registration is None:
+        abort(404)
+    filename = os.path.basename(registration["document_path"])
+    extension = os.path.splitext(filename)[1].lower()
+    mimetype = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+    }.get(extension)
+    if mimetype is None:
+        abort(404)
+    path = os.path.join(app.config["OFFICER_DOCUMENT_FOLDER"], filename)
+    if not os.path.isfile(path):
+        abort(404)
+    response = app.make_response(
+        send_file(
+            path,
+            mimetype=mimetype,
+            as_attachment=True,
+            download_name=f"officer-id-{registration_id}{extension}",
+            conditional=True,
+        )
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@app.post("/admin/officer-registrations/<int:registration_id>/reject")
+@admin_required
+def admin_reject_officer_registration(registration_id):
+    db = get_db()
+    registration = db.execute(
+        "SELECT document_path FROM officer_registration_requests WHERE id = ?",
+        (registration_id,),
+    ).fetchone()
+    if registration is None:
+        abort(404)
+    db.execute(
+        "DELETE FROM officer_registration_requests WHERE id = ?",
+        (registration_id,),
+    )
+    db.commit()
+    if delete_officer_document(registration["document_path"]):
+        flash("Unverified legacy registration and its uploaded ID document were deleted.", "success")
+    else:
+        flash(
+            "The unverified legacy registration was deleted, but its ID document could not be removed. An administrator must remove it from private storage.",
+            "warning",
+        )
+    return redirect(url_for("admin_officers"))
+
+
+def delete_officer_document(filename):
+    path = os.path.join(
+        app.config["OFFICER_DOCUMENT_FOLDER"], os.path.basename(filename)
+    )
+    if not os.path.isfile(path):
+        return True
+    try:
+        os.remove(path)
+    except OSError:
+        app.logger.exception("Unable to remove reviewed officer ID document")
+        return False
+    return True
+
+
 @app.route("/admin/officers")
 @admin_required
 def admin_officers():
-    officers = get_db().execute(
+    db = get_db()
+    officers = db.execute(
         """SELECT users.*, villages.name AS village_name
            FROM users LEFT JOIN villages ON villages.id = users.assigned_village_id
            WHERE users.role = 'village_officer' ORDER BY users.created_at DESC"""
     ).fetchall()
-    return render_template("admin_officers.html", officers=officers)
+    registrations = db.execute(
+        """SELECT officer_registration_requests.*, villages.name AS village_name
+           FROM officer_registration_requests
+           JOIN villages ON villages.id = officer_registration_requests.assigned_village_id
+           ORDER BY officer_registration_requests.created_at"""
+    ).fetchall()
+    return render_template(
+        "admin_officers.html", officers=officers, registrations=registrations
+    )
 
 
 @app.route("/admin/officers/new", methods=["GET", "POST"])
@@ -2411,7 +3098,9 @@ def forbidden(_error):
 @app.errorhandler(413)
 def request_too_large(_error):
     return render_template(
-        "error.html", code=413, message="The uploaded request is too large. Complaint photos must be 5 MB or smaller."
+        "error.html",
+        code=413,
+        message="The uploaded request is too large. Complaint photos and officer ID documents must be 5 MB or smaller.",
     ), 413
 
 

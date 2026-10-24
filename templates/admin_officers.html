@@ -2,7 +2,17 @@
 {% block title %}Village officers · Smart Village{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">SYSTEM ADMINISTRATION</p><h1>Village Officers</h1><p class="muted">Create officer accounts and approve their village assignment before access is enabled.</p></div><a class="button button-primary" href="{{ url_for('admin_create_officer') }}">＋ Create officer</a></div>
-<section class="notice"><strong>Approval required.</strong> New officer accounts are created inactive and unapproved. Activate only after confirming the officer and village assignment.</section>
+<div class="page-heading"><div><p class="eyebrow">SYSTEM ADMINISTRATION</p><h1>Village Officers</h1><p class="muted">Manage officer accounts, assignments, and access.</p></div><a class="button button-primary" href="{{ url_for('admin_create_officer') }}">＋ Create officer</a></div>
+{% if registrations %}
+<section class="notice"><strong>Unverified legacy registrations.</strong> These requests predate the configured verification workflow and cannot be approved or activated. Review and delete the private files and records below.</section>
+<section class="panel table-panel">
+  <div class="panel-heading"><div><h2>Legacy unverified requests</h2><p>Identity files are accessible only to an authenticated administrator and should be deleted with the request.</p></div></div>
+  <div class="table-scroll"><table><thead><tr><th>Applicant</th><th>Email / mobile</th><th>Officer ID</th><th>Location</th><th>Requested village</th><th>ID document</th><th>Verification status</th><th>Submitted</th><th>Cleanup</th></tr></thead>
+    <tbody>{% for registration in registrations %}
+    <tr><td>{{ registration.full_name }}</td><td>{{ registration.email }}<br>{{ registration.mobile_number }}</td><td>{{ registration.officer_identifier }}</td><td>{{ registration.state }} · {{ registration.district }} · {{ registration.taluk }}</td><td>{{ registration.village_name }}</td><td><a class="text-link" href="{{ url_for('admin_officer_registration_document', registration_id=registration.id) }}">Download private document</a><br>{{ registration.document_type }}</td><td>Unverified · no account access</td><td>{{ registration.created_at }}</td><td><form method="post" action="{{ url_for('admin_reject_officer_registration', registration_id=registration.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="button button-danger button-small" type="submit">Delete request and document</button></form></td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
 <section class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Officer</th><th>Official email</th><th>Assigned village</th><th>Department</th><th>Approved</th><th>Active</th><th>Import permission</th><th></th></tr></thead><tbody>{% for officer in officers %}<tr><td>{{ officer.name }}</td><td>{{ officer.email }}</td><td>{{ officer.village_name or 'Unassigned' }}</td><td>{{ officer.department or '—' }}</td><td>{{ 'Yes' if officer.is_approved else 'No' }}</td><td>{{ 'Yes' if officer.is_active else 'No' }}</td><td>{{ 'Yes' if officer.can_import else 'No' }}</td><td><a class="text-link" href="{{ url_for('admin_edit_officer', officer_id=officer.id) }}">Manage</a></td></tr>{% else %}<tr><td colspan="8" class="empty-state">No officer accounts have been created.</td></tr>{% endfor %}</tbody></table></div></section>
 {% endblock %}

@@ -1,7 +1,7 @@
 .auth-hero { position: relative; max-width: 780px; margin: 4px auto 30px; text-align: center; }
 .auth-hero h1 { margin: 9px 0 10px; color: #193e2c; font-size: clamp(28px, 4vw, 42px); letter-spacing: -1px; }
 .auth-hero > p:last-child { max-width: 620px; margin: auto; color: #718078; font-size: 14px; line-height: 1.7; }
-.auth-choice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+.auth-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: stretch; max-width: 900px; margin: 0 auto; }
 .auth-choice { position: relative; display: flex; min-height: 310px; flex-direction: column; align-items: flex-start; padding: 24px; overflow: hidden; border: 1px solid #e3eae4; border-radius: 14px; background: #fff; box-shadow: 0 5px 20px rgba(27,66,43,.05); transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
 .auth-choice::before { position: absolute; top: -45px; right: -35px; width: 115px; height: 115px; border-radius: 50%; background: #edf6ef; content: ""; }
 .auth-choice:hover { transform: translateY(-5px); border-color: #bdd5c2; box-shadow: 0 14px 30px rgba(27,66,43,.11); }
@@ -22,6 +22,9 @@
 .auth-form-card { display: grid; gap: 14px; width: 100%; max-width: 540px; margin: 0; }
 .auth-form-card h2 { margin: 0 0 2px; font-size: 18px; }
 .auth-form-card label { display: grid; gap: 7px; color: #58685f; font-size: 12px; font-weight: 650; }
+.password-control { display: flex; align-items: center; gap: 8px; }
+.password-control input { min-width: 0; }
+.password-toggle { flex: 0 0 auto; }
 .auth-form-card label small { color: #7e8b83; font-size: 10px; font-weight: 400; }
 .auth-form-card .small-note { margin: 0; color: #849189; font-size: 10px; line-height: 1.6; }
 .auth-form-card .small-note a { font-size: inherit; }
@@ -33,13 +36,32 @@
 .citizen-shortcuts .panel, .officer-shortcuts .panel { display: flex; flex-direction: column; align-items: flex-start; }
 .citizen-shortcuts .panel .button, .officer-shortcuts .panel .button { margin-top: auto; }
 .auth-pending { max-width: 620px; margin: 45px auto; text-align: center; }
+.registration-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 auto 20px; padding: 0; list-style: none; }
+.registration-steps li { padding: 12px; border: 1px solid #e3eae4; border-radius: 8px; background: #fff; color: #52625a; font-size: 11px; font-weight: 650; }
+.registration-steps li strong { display: block; margin-bottom: 4px; color: #28764f; font-size: 10px; }
+.registration-layout { max-width: 1000px; }
+.registration-layout .auth-form-card { max-width: none; }
+.registration-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.registration-fields label { min-width: 0; }
+.registration-fields .field-wide { grid-column: 1 / -1; }
+.demo-status { padding: 12px; border: 1px solid #ead9ad; border-radius: 7px; background: #fffaf0; color: #6c5b3d; font-size: 12px; line-height: 1.6; }
+.camera-preview { display: grid; gap: 10px; }
+.camera-preview video, .camera-preview canvas { width: min(100%, 360px); aspect-ratio: 4 / 3; border: 1px solid #dfe6e1; border-radius: 8px; background: #18241d; object-fit: cover; }
+.camera-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.camera-message { margin: 0; color: #718078; font-size: 11px; }
+.camera-message[data-state="error"] { color: #b84238; }
+.camera-message[data-state="complete"] { color: #28764f; }
+.consent-row { display: flex !important; grid-template-columns: auto 1fr; align-items: start; gap: 9px !important; line-height: 1.6; }
+.consent-row input { width: 17px; min-height: 17px; margin-top: 2px; }
 @media (max-width: 900px) {
-  .auth-choice-grid { grid-template-columns: 1fr 1fr; }
   .auth-form-layout { grid-template-columns: 1fr 1.15fr; gap: 25px; }
   .citizen-shortcuts, .officer-shortcuts { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 650px) {
   .auth-choice-grid, .auth-form-layout, .citizen-shortcuts, .officer-shortcuts { grid-template-columns: 1fr; }
+  .registration-steps { grid-template-columns: 1fr 1fr; }
+  .registration-fields { grid-template-columns: 1fr; }
+  .registration-fields .field-wide { grid-column: auto; }
   .auth-choice { min-height: 260px; }
   .auth-form-layout { margin-top: 0; }
   .auth-form-intro { padding: 8px 0 0; }

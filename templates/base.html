@@ -23,7 +23,6 @@
         <a href="{{ url_for('villages') }}" class="{{ 'active' if request.endpoint in ('villages', 'village_details') else '' }}" {% if request.endpoint in ('villages', 'village_details') %}aria-current="page"{% endif %}><span aria-hidden="true">⌂</span> Villages</a>
         <a href="{{ url_for('projects') }}" class="{{ 'active' if request.endpoint == 'projects' else '' }}" {% if request.endpoint == 'projects' %}aria-current="page"{% endif %}><span aria-hidden="true">▤</span> Projects</a>
         <a href="{{ url_for('analytics') }}" class="{{ 'active' if request.endpoint == 'analytics' else '' }}" {% if request.endpoint == 'analytics' %}aria-current="page"{% endif %}><span aria-hidden="true">▥</span> Analytics</a>
-        <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint == 'reports' else '' }}" {% if request.endpoint == 'reports' %}aria-current="page"{% endif %}><span aria-hidden="true">▧</span> Reports</a>
         <a href="{{ url_for('education') }}" class="{{ 'active' if request.endpoint in ('education', 'education_service') else '' }}" {% if request.endpoint in ('education', 'education_service') %}aria-current="page"{% endif %}><span aria-hidden="true">▣</span> E-Education</a>
         <a href="{{ url_for('manage_complaints') }}" class="{{ 'active' if request.endpoint == 'manage_complaints' else '' }}" {% if request.endpoint == 'manage_complaints' %}aria-current="page"{% endif %}><span aria-hidden="true">!</span> Manage Complaints</a>
         <a href="{{ url_for('track_complaint') }}" class="{{ 'active' if request.endpoint == 'track_complaint' else '' }}" {% if request.endpoint == 'track_complaint' %}aria-current="page"{% endif %}><span aria-hidden="true">◷</span> Track Complaint</a>
@@ -34,7 +33,7 @@
       <nav class="side-nav" aria-label="Administration navigation">
         <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint == 'admin_dashboard' else '' }}"><span aria-hidden="true">⚙</span> Admin panel</a>
         <a href="{{ url_for('admin_complaints') }}" class="{{ 'active' if request.endpoint in ('admin_complaints', 'admin_complaint_details') else '' }}"><span aria-hidden="true">!</span> Complaints</a>
-        <a href="{{ url_for('admin_officers') }}" class="{{ 'active' if request.endpoint in ('admin_officers', 'admin_create_officer', 'admin_edit_officer') else '' }}"><span aria-hidden="true">♙</span> Village officers</a>
+        <a href="{{ url_for('admin_officers') }}" class="{{ 'active' if request.endpoint in ('admin_officers', 'admin_create_officer', 'admin_edit_officer', 'admin_officer_registration_document', 'admin_reject_officer_registration') else '' }}"><span aria-hidden="true">♙</span> Village officers</a>
         <a href="{{ url_for('add_facility') }}"><span aria-hidden="true">＋</span> Add facility</a>
       </nav>
       {% elif current_user and current_user.role == 'village_officer' %}
@@ -43,7 +42,7 @@
         <a href="{{ url_for('officer_dashboard') }}"><span aria-hidden="true">⌂</span> My village</a>
         <a href="{{ url_for('officer_projects') }}"><span aria-hidden="true">▤</span> Village projects</a>
         <a href="{{ url_for('officer_complaints') }}"><span aria-hidden="true">!</span> Village complaints</a>
-        <a href="{{ url_for('officer_reports') }}"><span aria-hidden="true">▧</span> Village reports</a>
+        <a href="{{ url_for('officer_reports') }}" class="{{ 'active' if request.endpoint in ('reports', 'officer_reports') else '' }}" {% if request.endpoint in ('reports', 'officer_reports') %}aria-current="page"{% endif %}><span aria-hidden="true">▧</span> Village reports</a>
         <a href="{{ url_for('gis_map') }}"><span aria-hidden="true">◎</span> Village GIS map</a>
       </nav>
       {% elif current_user and current_user.role == 'citizen' %}
@@ -64,7 +63,7 @@
           {% if current_user %}
             <span class="account-name">Signed in as <strong>{{ current_user.name }}</strong> · {{ current_user.role|replace('_', ' ')|title }}</span>
             <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="button button-outline button-small" type="submit">Sign out</button></form>
-          {% else %}
+          {% elif request.endpoint not in ('auth_landing', 'citizen_register', 'citizen_login', 'officer_login', 'officer_register', 'admin_login', 'login') %}
             <a class="button button-outline button-small" href="{{ url_for('auth_landing') }}">Sign in</a>
           {% endif %}
         </div>
